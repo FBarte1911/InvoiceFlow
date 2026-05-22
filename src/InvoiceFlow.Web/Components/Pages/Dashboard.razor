@@ -1,0 +1,260 @@
+@page "/"
+@using InvoiceFlow.Application.Clients.Queries.ListClients
+@using InvoiceFlow.Application.Invoicing.Queries.GetDashboardMetrics
+@using InvoiceFlow.Application.Subscriptions.Queries.GetCurrentSubscription
+@using InvoiceFlow.Domain.Invoicing
+@using MediatR
+@inject IMediator Mediator
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Dashboard — InvoiceFlow</PageTitle>
+
+<div class="p-6">
+
+    @* Usage banner *@
+    @if (_subscription is not null && _subscription.MaxInvoicesPerMonth > 0 && _metrics is not null)
+    {
+        var usagePct = _metrics.MonthlyInvoiceCount * 100 / _subscription.MaxInvoicesPerMonth;
+        if (usagePct >= InvoiceFlowConstants.UsageBannerWarningThresholdPercent)
+        {
+            <div class="flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 mb-6 text-sm text-amber-800 font-medium">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-amber-500" style="font-size:18px;">warning</span>
+                    <span>Usaste @_metrics.MonthlyInvoiceCount de @_subscription.MaxInvoicesPerMonth facturas este mes en el plan @_subscription.Tier.</span>
+                </div>
+                <a href="/pricing" class="flex-shrink-0 bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-600 transition-colors">Mejorar plan</a>
+            </div>
+        }
+    }
+
+    @* Page Header *@
+    <section class="mb-7">
+        <h1 class="text-2xl font-bold text-on-surface mb-1">Buenos días, Facundo</h1>
+        <p class="text-sm text-on-surface-variant">Aquí tienes el resumen de tu actividad financiera para hoy.</p>
+    </section>
+
+    @* KPI Cards *@
+    @if (_subscription is not null && _metrics is not null)
+    {
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+            <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Ingresos</span>
+                    <span class="material-symbols-outlined text-secondary" style="font-size:20px;">trending_up</span>
+                </div>
+                <p class="text-2xl font-bold text-on-surface" style="font-family: 'JetBrains Mono', monospace;">$@(_metrics.PaidThisMonth.ToString("N2"))</p>
+                <p class="text-xs text-on-surface-variant">@_metrics.PaidCount factura@(_metrics.PaidCount != 1 ? "s" : "") cobrada@(_metrics.PaidCount != 1 ? "s" : "") este mes</p>
+            </div>
+
+            <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Pendientes</span>
+                    <span class="material-symbols-outlined text-amber-500" style="font-size:20px;">pending_actions</span>
+                </div>
+                <p class="text-2xl font-bold text-on-surface" style="font-family: 'JetBrains Mono', monospace;">$@(_metrics.PendingAmount.ToString("N2"))</p>
+                <p class="text-xs text-on-surface-variant">@_metrics.PendingCount factura@(_metrics.PendingCount != 1 ? "s" : "") sin cobrar</p>
+            </div>
+
+            <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Vencidas</span>
+                    <span class="material-symbols-outlined text-error" style="font-size:20px;">error_outline</span>
+                </div>
+                <p class="text-2xl font-bold text-error" style="font-family: 'JetBrains Mono', monospace;">$@(_metrics.OverdueAmount.ToString("N2"))</p>
+                <p class="text-xs text-on-surface-variant">@_metrics.OverdueCount factura@(_metrics.OverdueCount != 1 ? "s" : "") vencida@(_metrics.OverdueCount != 1 ? "s" : "")</p>
+            </div>
+
+            <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Clientes</span>
+                    <span class="material-symbols-outlined text-on-surface-variant" style="font-size:20px;">group</span>
+                </div>
+                <p class="text-2xl font-bold text-on-surface" style="font-family: 'JetBrains Mono', monospace;">@_clientCount</p>
+                <p class="text-xs text-on-surface-variant">
+                    @if (_subscription.MaxClients == -1)
+                    { <span>Sin límite de clientes</span> }
+                    else
+                    { <span>de @_subscription.MaxClients permitidos</span> }
+                </p>
+            </div>
+        </section>
+    }
+
+    @* Income Chart (simulated) *@
+    <section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 mb-6 shadow-sm overflow-hidden">
+        <div class="flex justify-between items-end mb-5">
+            <div>
+                <h3 class="text-lg font-semibold text-on-surface">Ingresos Mensuales</h3>
+                <p class="text-sm text-on-surface-variant">Actividad de facturación del año en curso</p>
+            </div>
+            <a href="/reports" class="text-sm font-semibold text-secondary hover:underline">Ver reportes</a>
+        </div>
+        <div class="relative h-40 w-full flex items-end justify-between gap-1">
+            <div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-10">
+                <div class="border-b border-outline"></div>
+                <div class="border-b border-outline"></div>
+                <div class="border-b border-outline"></div>
+                <div class="border-b border-outline"></div>
+            </div>
+            <svg class="absolute bottom-0 left-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 1000 100">
+                <defs>
+                    <linearGradient id="gradient" x1="0%" x2="0%" y1="0%" y2="100%">
+                        <stop offset="0%" stop-color="#3fe1fd" stop-opacity="0.3"></stop>
+                        <stop offset="100%" stop-color="#3fe1fd" stop-opacity="0"></stop>
+                    </linearGradient>
+                </defs>
+                <path d="M0,80 Q100,60 200,75 T400,30 T600,50 T800,20 T1000,40 L1000,100 L0,100 Z" fill="url(#gradient)"></path>
+                <path d="M0,80 Q100,60 200,75 T400,30 T600,50 T800,20 T1000,40" fill="none" stroke="#006877" stroke-width="2"></path>
+            </svg>
+            <div class="absolute bottom-[-20px] left-0 w-full flex justify-between px-2">
+                <span class="text-xs text-on-surface-variant" style="font-family: 'JetBrains Mono', monospace;">ENE</span>
+                <span class="text-xs text-on-surface-variant" style="font-family: 'JetBrains Mono', monospace;">FEB</span>
+                <span class="text-xs text-on-surface-variant" style="font-family: 'JetBrains Mono', monospace;">MAR</span>
+                <span class="text-xs text-on-surface-variant" style="font-family: 'JetBrains Mono', monospace;">ABR</span>
+                <span class="text-xs text-on-surface-variant" style="font-family: 'JetBrains Mono', monospace;">MAY</span>
+                <span class="text-xs text-secondary font-bold" style="font-family: 'JetBrains Mono', monospace;">JUN</span>
+            </div>
+        </div>
+        <div class="mt-6"></div>
+    </section>
+
+    @* Recent Invoices + Quick Actions *@
+    <section class="grid grid-cols-1 lg:grid-cols-10 gap-4">
+
+        @* Recent Invoices Table *@
+        <div class="lg:col-span-6 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden flex flex-col">
+            <div class="px-5 py-4 border-b border-outline-variant flex justify-between items-center">
+                <h3 class="text-base font-semibold text-on-surface">Facturas recientes</h3>
+                <a href="/invoices" class="text-sm font-semibold text-secondary hover:underline">Ver todas</a>
+            </div>
+
+            @if (_metrics is null)
+            {
+                <div class="flex items-center justify-center py-12">
+                    <span class="text-sm text-on-surface-variant">Cargando...</span>
+                </div>
+            }
+            else if (!_metrics.RecentInvoices.Any())
+            {
+                <div class="flex flex-col items-center justify-center py-12 gap-4 px-6 text-center">
+                    <span class="material-symbols-outlined text-outline-variant" style="font-size:48px;">description</span>
+                    <p class="text-sm text-on-surface-variant">Todavía no hay facturas. ¡Creá tu primera factura!</p>
+                    <a href="/invoices/new" class="bg-secondary text-on-secondary text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition-all">Crear primera factura</a>
+                </div>
+            }
+            else
+            {
+                <table class="w-full text-left">
+                    <thead class="bg-surface-container-low text-on-surface-variant text-xs uppercase tracking-wider font-semibold">
+                        <tr>
+                            <th class="px-5 py-3">Cliente</th>
+                            <th class="px-5 py-3">Estado</th>
+                            <th class="px-5 py-3">Fecha</th>
+                            <th class="px-5 py-3 text-right">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        @foreach (var inv in _metrics.RecentInvoices)
+                        {
+                            <tr class="hover:bg-surface-container-low transition-colors">
+                                <td class="px-5 py-3.5">
+                                    <div class="flex items-center gap-3">
+                                        <ClientInitialsAvatar Name="@inv.ClientName" />
+                                        <a href="/invoices/@inv.Id" class="text-sm font-semibold text-on-surface hover:text-secondary transition-colors">@inv.ClientName</a>
+                                    </div>
+                                </td>
+                                <td class="px-5 py-3.5">
+                                    <InvoiceStatusBadge Status="@inv.Status" />
+                                </td>
+                                <td class="px-5 py-3.5 text-sm text-on-surface-variant">@inv.IssueDate.ToString("dd MMM yyyy")</td>
+                                <td class="px-5 py-3.5 text-right text-sm font-semibold text-on-surface" style="font-family: 'JetBrains Mono', monospace;">
+                                    @inv.Currency @inv.Total.ToString("N2")
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        @* Quick Actions & Overdue *@
+        <div class="lg:col-span-4 flex flex-col gap-4">
+
+            @* Por cobrar Card *@
+            <div class="bg-primary text-white p-5 rounded-xl flex flex-col gap-4 relative overflow-hidden">
+                <div class="relative z-10">
+                    <p class="text-sm opacity-80 mb-1">Por cobrar (total)</p>
+                    <p class="text-2xl font-bold" style="font-family: 'JetBrains Mono', monospace;">$@(((_metrics?.PendingAmount ?? 0) + (_metrics?.OverdueAmount ?? 0)).ToString("N2"))</p>
+                    @if (_metrics?.OverdueAmount > 0)
+                    {
+                        <div class="flex items-center gap-2 mt-2">
+                            <span class="w-2 h-2 bg-amber-400 rounded-full"></span>
+                            <span class="text-sm opacity-80">$@(_metrics.OverdueAmount.ToString("N2")) vencidos</span>
+                        </div>
+                    }
+                </div>
+                <a href="/invoices" class="relative z-10 bg-white/10 hover:bg-white/20 py-2.5 rounded-lg text-sm font-semibold transition-colors text-center">Ver facturas</a>
+                <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-secondary opacity-20 rounded-full blur-3xl"></div>
+            </div>
+
+            @* Overdue Alerts *@
+            @if (_metrics is not null)
+            {
+                var overdueList = _metrics.RecentInvoices.Where(i => i.Status == InvoiceStatus.Overdue).Take(InvoiceFlowConstants.OverdueAlertsMaxCount).ToList();
+                if (overdueList.Any())
+                {
+                    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm flex flex-col">
+                        <div class="px-5 py-4 border-b border-outline-variant">
+                            <h3 class="text-base font-semibold text-on-surface">Facturas vencidas</h3>
+                        </div>
+                        <div class="px-4 py-3 flex flex-col gap-2.5">
+                            @foreach (var inv in overdueList)
+                            {
+                                <div class="p-3.5 bg-surface-container-low rounded-lg border-l-4 border-error flex justify-between items-center gap-3">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-semibold text-on-surface truncate">@inv.Number – @inv.ClientName</p>
+                                        <p class="text-xs text-error font-medium">Venció el @inv.DueDate.ToString("dd/MM/yyyy")</p>
+                                    </div>
+                                    <p class="text-sm font-semibold text-on-surface flex-shrink-0" style="font-family: 'JetBrains Mono', monospace;">$@inv.Total.ToString("N2")</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm px-5 py-8 flex flex-col items-center gap-2 text-center">
+                        <span class="material-symbols-outlined text-secondary" style="font-size:32px; font-variation-settings: 'FILL' 1;">check_circle</span>
+                        <p class="text-sm font-semibold text-on-surface">Todo al día</p>
+                        <p class="text-xs text-on-surface-variant">No tenés facturas vencidas.</p>
+                    </div>
+                }
+            }
+
+            <a href="/invoices/new" class="flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-outline-variant text-on-surface text-sm font-semibold hover:bg-surface-container-high transition-colors">
+                <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+                Nueva factura
+            </a>
+        </div>
+    </section>
+</div>
+
+@code {
+    private DashboardMetricsResult? _metrics;
+    private Application.Subscriptions.Dtos.SubscriptionDto? _subscription;
+    private int _clientCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var metricsTask      = Mediator.Send(new GetDashboardMetricsQuery());
+        var subscriptionTask = Mediator.Send(new GetCurrentSubscriptionQuery());
+        var clientsTask      = Mediator.Send(new ListClientsQuery(1, 1));
+
+        await Task.WhenAll(metricsTask, subscriptionTask, clientsTask);
+
+        _metrics      = await metricsTask;
+        _subscription = await subscriptionTask;
+        _clientCount  = (await clientsTask).TotalCount;
+    }
+}

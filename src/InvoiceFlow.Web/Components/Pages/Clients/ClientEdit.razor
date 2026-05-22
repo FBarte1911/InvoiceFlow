@@ -1,0 +1,188 @@
+@page "/clients/{ClientId:guid}/edit"
+@using InvoiceFlow.Application.Clients.Commands.UpdateClient
+@using InvoiceFlow.Application.Clients.Queries.GetClientById
+@using InvoiceFlow.Domain.Shared
+@using MediatR
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Editar Cliente — InvoiceFlow</PageTitle>
+
+<div class="p-6 max-w-3xl">
+
+    @* Header *@
+    <div class="flex items-center gap-4 mb-7">
+        <a href="/clients" class="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors">
+            <span class="material-symbols-outlined" style="font-size:20px;">arrow_back</span>
+        </a>
+        <div>
+            <div class="flex items-center gap-2 text-on-surface-variant mb-0.5">
+                <a href="/clients" class="text-sm hover:text-secondary transition-colors">Clientes</a>
+                <span class="material-symbols-outlined" style="font-size:14px;">chevron_right</span>
+                <span class="text-sm font-semibold text-on-surface">Editar Cliente</span>
+            </div>
+            <h1 class="text-2xl font-bold text-on-surface">Editar cliente</h1>
+        </div>
+    </div>
+
+    @if (_model is null)
+    {
+        <div class="flex items-center justify-center py-20">
+            <div class="flex items-center gap-3 text-on-surface-variant">
+                <span class="material-symbols-outlined" style="font-size:24px;">progress_activity</span>
+                <span class="text-sm">Cargando cliente...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_model" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm space-y-5">
+                <h2 class="text-base font-semibold text-on-surface mb-1">Información de contacto</h2>
+
+                <div class="grid grid-cols-2 gap-5">
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-on-surface">Nombre completo *</label>
+                        <InputText @bind-Value="_model.Name" placeholder="Juan García" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-secondary-container focus:border-secondary outline-none transition-all" />
+                        <ValidationMessage For="() => _model.Name" class="text-xs text-error" />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-on-surface">Email *</label>
+                        <InputText @bind-Value="_model.Email" placeholder="juan@empresa.com" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-secondary-container focus:border-secondary outline-none transition-all" />
+                        <ValidationMessage For="() => _model.Email" class="text-xs text-error" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-5">
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-on-surface">Teléfono / WhatsApp</label>
+                        <InputText @bind-Value="_model.Phone" placeholder="+54 9 11 1234 5678" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-secondary-container focus:border-secondary outline-none transition-all" />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-on-surface">Empresa</label>
+                        <InputText @bind-Value="_model.Company" placeholder="Empresa S.A." class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-secondary-container focus:border-secondary outline-none transition-all" />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-5">
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-on-surface">RUT / CUIT / CPF</label>
+                        <InputText @bind-Value="_model.TaxId" placeholder="Número fiscal" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-secondary-container focus:border-secondary outline-none transition-all" style="font-family:'JetBrains Mono',monospace;" />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-semibold text-on-surface">Moneda preferida *</label>
+                        <div class="relative">
+                            <InputSelect @bind-Value="_model.PreferredCurrency" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm appearance-none focus:ring-2 focus:ring-secondary-container outline-none transition-all">
+                                @foreach (var currency in Enum.GetValues<Currency>())
+                                {
+                                    <option value="@currency">@currency</option>
+                                }
+                            </InputSelect>
+                            <span class="material-symbols-outlined absolute right-4 top-3.5 pointer-events-none text-on-surface-variant" style="font-size:18px;">expand_more</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="flex items-center gap-3 p-4 mt-4 bg-error-container text-on-error-container rounded-xl border border-error/20 text-sm">
+                    <span class="material-symbols-outlined" style="font-size:20px;">error</span>
+                    @_error
+                </div>
+            }
+
+            <div class="flex items-center justify-between mt-6">
+                <button type="button" @onclick="Cancel" class="px-5 py-2.5 border border-outline-variant rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" disabled="@_isSubmitting" class="flex items-center gap-2 px-6 py-2.5 bg-secondary-container text-on-secondary-container rounded-lg text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all shadow-sm disabled:opacity-50">
+                    @if (_isSubmitting)
+                    {
+                        <span class="material-symbols-outlined" style="font-size:16px;">progress_activity</span>
+                        <span>Guardando...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size:16px;">save</span>
+                        <span>Guardar cambios</span>
+                    }
+                </button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid ClientId { get; set; }
+
+    private ClientEditModel? _model;
+    private bool _isSubmitting;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = await Mediator.Send(new GetClientByIdQuery(ClientId));
+        _model = new ClientEditModel
+        {
+            Name = client.Name,
+            Email = client.Email,
+            Phone = client.Phone,
+            Company = client.Company,
+            TaxId = client.TaxId,
+            PreferredCurrency = client.PreferredCurrency
+        };
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (_model is null) return;
+
+        _isSubmitting = true;
+        _error = null;
+
+        try
+        {
+            var command = new UpdateClientCommand(
+                ClientId,
+                _model.Name,
+                _model.Email,
+                _model.PreferredCurrency,
+                _model.Phone,
+                _model.Company,
+                _model.TaxId);
+
+            await Mediator.Send(command);
+            Nav.NavigateTo("/clients");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => Nav.NavigateTo("/clients");
+
+    private sealed class ClientEditModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El nombre es obligatorio")]
+        public string Name { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "El email es obligatorio")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Email inválido")]
+        public string Email { get; set; } = string.Empty;
+
+        public string? Phone { get; set; }
+        public string? Company { get; set; }
+        public string? TaxId { get; set; }
+        public Currency PreferredCurrency { get; set; } = Currency.USD;
+    }
+}

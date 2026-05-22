@@ -1,0 +1,7 @@
+<div class="w-8 h-8 rounded-full bg-primary-fixed-dim flex items-center justify-center text-on-primary-fixed font-bold text-xs flex-shrink-0">
+    @(Name.Length >= 2 ? Name[..2].ToUpper() : Name.ToUpper())
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+}

@@ -1,0 +1,129 @@
+@page "/clients"
+@using InvoiceFlow.Application.Clients.Commands.DeleteClient
+@using InvoiceFlow.Application.Clients.Queries.ListClients
+@using MediatR
+@inject IMediator Mediator
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Clientes — InvoiceFlow</PageTitle>
+
+<div class="p-6">
+    @* Page Header *@
+    <div class="flex justify-between items-end mb-7">
+        <div>
+            <h1 class="text-3xl font-bold text-on-surface">Clientes</h1>
+            <p class="text-base text-on-surface-variant mt-1">Gestioná tu red de contactos y el historial de facturación.</p>
+        </div>
+        <a href="/clients/new" class="flex items-center gap-2 bg-secondary-container text-on-secondary-container px-5 py-2.5 rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition-all shadow-sm">
+            <span class="material-symbols-outlined" style="font-size:18px;">person_add</span>
+            Nuevo Cliente
+        </a>
+    </div>
+
+    @if (_result is null)
+    {
+        <div class="flex items-center justify-center py-20">
+            <div class="flex items-center gap-3 text-on-surface-variant">
+                <span class="material-symbols-outlined" style="font-size:24px;">progress_activity</span>
+                <span class="text-sm">Cargando clientes...</span>
+            </div>
+        </div>
+    }
+    else if (!_result.Items.Any())
+    {
+        <div class="flex flex-col items-center justify-center py-20 gap-4 text-center">
+            <span class="material-symbols-outlined text-outline-variant" style="font-size:56px;">group</span>
+            <div>
+                <p class="text-base font-semibold text-on-surface mb-1">No tenés clientes todavía</p>
+                <p class="text-sm text-on-surface-variant">Agregá tu primer cliente para empezar a facturar.</p>
+            </div>
+            <a href="/clients/new" class="bg-secondary text-on-secondary text-sm font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 transition-all">Agregar primer cliente</a>
+        </div>
+    }
+    else
+    {
+        @* Stats Summary *@
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+            <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm">
+                <span class="text-sm text-on-surface-variant block mb-1">Total Clientes</span>
+                <span class="text-2xl font-bold text-on-surface" style="font-family: 'JetBrains Mono', monospace;">@_result.TotalCount</span>
+            </div>
+            <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm">
+                <span class="text-sm text-on-surface-variant block mb-1">Mostrando</span>
+                <span class="text-2xl font-bold text-secondary" style="font-family: 'JetBrains Mono', monospace;">@_result.Items.Count</span>
+            </div>
+            <div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm col-span-1 sm:col-span-2">
+                <span class="text-sm text-on-surface-variant block mb-1">Gestioná tus clientes</span>
+                <p class="text-sm text-on-surface-variant">Hacé click en el nombre de un cliente para ver su historial completo de facturas.</p>
+            </div>
+        </div>
+
+        @* Client Cards Grid *@
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            @foreach (var client in _result.Items)
+            {
+                <div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm hover:shadow-md transition-shadow relative flex flex-col">
+                    @* Actions Menu *@
+                    <div class="absolute top-3 right-3 flex gap-1">
+                        <a href="/clients/@client.Id/edit" class="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors" title="Editar">
+                            <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+                        </a>
+                        <button @onclick="() => DeactivateAsync(client.Id)" class="p-1.5 text-on-surface-variant hover:text-error hover:bg-error-container rounded-lg transition-colors" title="Eliminar">
+                            <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+                        </button>
+                    </div>
+
+                    @* Client Info *@
+                    <div class="flex flex-col items-center text-center px-5 pt-8 pb-5">
+                        <div class="w-16 h-16 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xl mb-3 border-2 border-surface-container">
+                            @(client.Name.Length >= 2 ? client.Name[..2].ToUpper() : client.Name.ToUpper())
+                        </div>
+                        <a href="/clients/@client.Id" class="text-base font-semibold text-on-surface hover:text-secondary transition-colors leading-tight">@client.Name</a>
+                        @if (!string.IsNullOrEmpty(client.Company))
+                        {
+                            <p class="text-xs text-on-surface-variant mt-0.5">@client.Company</p>
+                        }
+                        <p class="text-xs text-on-surface-variant mt-0.5 truncate max-w-full">@client.Email</p>
+                    </div>
+
+                    @* Stats *@
+                    <div class="px-5 pb-5 pt-3 border-t border-outline-variant flex flex-col gap-2.5 mt-auto">
+                        @if (!string.IsNullOrEmpty(client.Phone))
+                        {
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs text-on-surface-variant">Teléfono</span>
+                                <span class="text-xs font-medium text-on-surface">@client.Phone</span>
+                            </div>
+                        }
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-on-surface-variant">Moneda</span>
+                            <span class="text-xs font-medium text-on-surface px-2 py-0.5 bg-surface-container rounded-full">@client.PreferredCurrency</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* Pagination info *@
+        @if (_result.TotalCount > _result.Items.Count)
+        {
+            <div class="mt-7 flex justify-center">
+                <p class="text-sm text-on-surface-variant">Mostrando @_result.Items.Count de @_result.TotalCount clientes</p>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private ListClientsResult? _result;
+
+    protected override async Task OnInitializedAsync() =>
+        _result = await Mediator.Send(new ListClientsQuery());
+
+    private async Task DeactivateAsync(Guid clientId)
+    {
+        await Mediator.Send(new DeleteClientCommand(clientId));
+        _result = await Mediator.Send(new ListClientsQuery());
+    }
+}

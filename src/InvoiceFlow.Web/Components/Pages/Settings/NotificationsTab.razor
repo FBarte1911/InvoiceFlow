@@ -1,0 +1,65 @@
+@using InvoiceFlow.Application.Subscriptions.Commands.UpdateReceiptPreference
+@using InvoiceFlow.Application.Subscriptions.Dtos
+@using MediatR
+@inject IMediator Mediator
+
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm space-y-6">
+    <div>
+        <h2 class="text-lg font-semibold text-on-surface mb-1">Recordatorios de pago</h2>
+        <p class="text-sm text-on-surface-variant mb-4">Se envían automáticamente cuando una factura está activa.</p>
+        <div class="space-y-0 divide-y divide-outline-variant border border-outline-variant rounded-xl overflow-hidden">
+            @foreach (var r in ReminderSchedule)
+            {
+                <div class="flex items-center justify-between px-5 py-3.5 bg-surface">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-outlined @(r.IsBefore ? "text-amber-500" : "text-secondary")" style="font-size:18px;font-variation-settings:'FILL' 1;">@(r.IsBefore ? "alarm" : "schedule")</span>
+                        <span class="text-sm text-on-surface">@r.Label</span>
+                    </div>
+                    <span class="text-xs font-semibold @(r.IsBefore ? "text-amber-600 bg-amber-50" : "text-secondary bg-secondary-container/20") px-2.5 py-1 rounded-full">Activo</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-lg font-semibold text-on-surface mb-1">Recibo de pago</h2>
+        <p class="text-sm text-on-surface-variant mb-4">Envía automáticamente un PDF de recibo al cliente cuando marcás una factura como cobrada.</p>
+        <div class="flex items-center justify-between p-4 border border-outline-variant rounded-xl">
+            <div>
+                <p class="text-sm font-semibold text-on-surface">Enviar recibo al cobrar</p>
+                <p class="text-xs text-on-surface-variant mt-0.5">El cliente recibe el PDF por email</p>
+            </div>
+            <button @onclick="ToggleReceiptAsync"
+                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none @(_sendReceipt ? "bg-secondary" : "bg-surface-container-high")"
+                role="switch" aria-checked="@_sendReceipt">
+                <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out @(_sendReceipt ? "translate-x-5" : "translate-x-0")"></span>
+            </button>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public SubscriptionDto Subscription { get; set; } = default!;
+    [Parameter, EditorRequired] public EventCallback OnSubscriptionChanged { get; set; }
+
+    private bool _sendReceipt;
+
+    protected override void OnParametersSet() => _sendReceipt = Subscription.SendReceiptOnPaid;
+
+    private async Task ToggleReceiptAsync()
+    {
+        _sendReceipt = !_sendReceipt;
+        await Mediator.Send(new UpdateReceiptPreferenceCommand(_sendReceipt));
+        await OnSubscriptionChanged.InvokeAsync();
+    }
+
+    private sealed record ReminderItem(string Label, bool IsBefore);
+
+    private static IEnumerable<ReminderItem> ReminderSchedule =>
+    [
+        new("2 días antes del vencimiento", true),
+        new("3 días después del vencimiento", false),
+        new("7 días después del vencimiento", false),
+        new("14 días después del vencimiento", false),
+    ];
+}

@@ -1,0 +1,189 @@
+@page "/pricing"
+@using InvoiceFlow.Application.Subscriptions.Queries.GetCurrentSubscription
+@using InvoiceFlow.Domain.Subscriptions
+@using MediatR
+@inject IMediator Mediator
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Planes — InvoiceFlow</PageTitle>
+
+<div class="p-6 max-w-6xl mx-auto">
+
+    @* Usage Alert *@
+    @if (_subscription is not null && _subscription.MaxInvoicesPerMonth > 0)
+    {
+        var pct = _subscription.MaxInvoicesPerMonth > 0 ? 0 : 0;
+        if (pct >= 80)
+        {
+            <div class="flex items-center gap-4 p-4 mb-6 bg-error-container text-on-error-container rounded-xl border border-error/20 shadow-sm">
+                <span class="material-symbols-outlined" style="font-size:24px;">warning</span>
+                <div class="flex-1">
+                    <p class="text-sm font-bold">Límite de facturas alcanzado</p>
+                    <p class="text-sm opacity-90">Actualizá tu plan para seguir facturando sin interrupciones.</p>
+                </div>
+                <a href="#plans" class="px-4 py-2 bg-on-error-container text-white rounded-lg text-sm font-semibold hover:opacity-90">Actualizar ahora</a>
+            </div>
+        }
+    }
+
+    @* Trial Banner *@
+    @if (_subscription is not null && _subscription.IsTrialActive)
+    {
+        <div class="flex items-center gap-3 p-4 mb-6 bg-secondary-container/20 border border-secondary/20 rounded-xl text-sm font-medium text-on-surface">
+            <span class="material-symbols-outlined text-secondary" style="font-size:20px;">timer</span>
+            Tu trial vence en <strong class="text-secondary">@TrialDaysLeft días</strong>. ¡Aprovechá para probar todas las funciones Pro!
+        </div>
+    }
+
+    @* Page Header *@
+    <div class="text-center mb-12" id="plans">
+        <h1 class="text-4xl font-bold text-on-surface mb-3">Escalá tu facturación</h1>
+        <p class="text-lg text-on-surface-variant max-w-2xl mx-auto">Planes diseñados para freelancers y equipos en crecimiento. Sin comisiones ocultas.</p>
+        <div class="mt-6 flex items-center justify-center gap-3">
+            <span class="text-sm font-medium text-on-surface">Mensual</span>
+            <div class="w-12 h-6 bg-secondary rounded-full relative cursor-pointer">
+                <div class="absolute top-1 right-1 w-4 h-4 bg-white rounded-full shadow-sm"></div>
+            </div>
+            <span class="text-sm font-medium text-on-surface">Anual</span>
+            <span class="px-2 py-0.5 bg-secondary-container text-on-secondary-container text-xs font-bold rounded-full">Ahorrás 20%</span>
+        </div>
+    </div>
+
+    @* Plans Grid *@
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch mb-16">
+
+        @* Starter *@
+        <div class="bg-surface-container-lowest border @(_subscription?.Tier == SubscriptionTier.Starter ? "border-secondary" : "border-outline-variant") rounded-xl p-7 flex flex-col hover:border-outline transition-colors shadow-sm">
+            <div class="mb-6">
+                <p class="text-secondary font-bold text-xs uppercase tracking-widest mb-1">Starter</p>
+                <h2 class="text-4xl font-bold text-on-surface">Gratis</h2>
+                <p class="text-sm text-on-surface-variant mt-2">Para quienes inician su camino freelance.</p>
+            </div>
+            <div class="space-y-3 mb-8 flex-1">
+                @foreach (var f in new[] { "Hasta 5 facturas/mes", "3 clientes activos", "Plantilla básica", "Envío por email" })
+                {
+                    <div class="flex items-center gap-3 text-sm">
+                        <span class="material-symbols-outlined text-secondary flex-shrink-0" style="font-size:18px;font-variation-settings:'FILL' 1;">check_circle</span>
+                        <span class="text-on-surface">@f</span>
+                    </div>
+                }
+                @foreach (var f in new[] { "WhatsApp", "Reportes avanzados" })
+                {
+                    <div class="flex items-center gap-3 text-sm opacity-40">
+                        <span class="material-symbols-outlined text-outline flex-shrink-0" style="font-size:18px;">cancel</span>
+                        <span class="text-on-surface-variant line-through">@f</span>
+                    </div>
+                }
+            </div>
+            @if (_subscription?.Tier == SubscriptionTier.Starter)
+            {
+                <div class="w-full py-3 border-2 border-outline-variant text-center rounded-xl text-sm font-semibold text-on-surface-variant">Plan actual</div>
+            }
+            else
+            {
+                <button class="w-full py-3 border-2 border-outline-variant rounded-xl text-sm font-semibold text-on-surface hover:bg-surface-container transition-colors">Seleccionar</button>
+            }
+        </div>
+
+        @* Pro (featured) *@
+        <div class="relative bg-surface-container-lowest border-2 border-secondary rounded-xl p-7 flex flex-col shadow-[0_20px_50px_rgba(0,104,119,0.12)] scale-[1.02] z-10">
+            <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-secondary text-on-secondary px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1 shadow-lg">
+                <span class="material-symbols-outlined" style="font-size:14px;font-variation-settings:'FILL' 1;">star</span>
+                Más popular
+            </div>
+            <div class="mb-6">
+                <p class="text-secondary font-bold text-xs uppercase tracking-widest mb-1">Pro</p>
+                <div class="flex items-baseline gap-1">
+                    <span class="text-4xl font-bold text-on-surface">$9</span>
+                    <span class="text-on-surface-variant text-sm">/mes</span>
+                </div>
+                <p class="text-xs text-secondary font-semibold mt-1">$79/año — ahorrás $29 USD</p>
+                <p class="text-sm text-on-surface-variant mt-2">Perfecto para profesionales con volumen constante.</p>
+            </div>
+            <div class="space-y-3 mb-8 flex-1">
+                @foreach (var f in new[] { "Facturas ilimitadas", "Clientes ilimitados", "Multi-moneda (USD, UYU, ARS, BRL)", "Envío por WhatsApp", "Recordatorios automáticos", "Reportes de ingresos", "Logo personalizado" })
+                {
+                    <div class="flex items-center gap-3 text-sm">
+                        <span class="material-symbols-outlined text-secondary flex-shrink-0" style="font-size:18px;font-variation-settings:'FILL' 1;">check_circle</span>
+                        <span class="text-on-surface font-medium">@f</span>
+                    </div>
+                }
+            </div>
+            @if (_subscription?.Tier == SubscriptionTier.Pro)
+            {
+                <div class="w-full py-3 bg-secondary/10 text-secondary text-center rounded-xl text-sm font-semibold border border-secondary/30">Plan actual ✓</div>
+            }
+            else
+            {
+                <button class="w-full py-3.5 bg-secondary-container text-on-secondary-container font-bold rounded-xl hover:brightness-95 active:scale-[0.98] transition-all shadow-md text-sm">Upgrade a Pro</button>
+            }
+        </div>
+
+        @* Team *@
+        <div class="bg-surface-container-lowest border @(_subscription?.Tier == SubscriptionTier.Team ? "border-secondary" : "border-outline-variant") rounded-xl p-7 flex flex-col hover:border-outline transition-colors shadow-sm">
+            <div class="mb-6">
+                <p class="text-secondary font-bold text-xs uppercase tracking-widest mb-1">Team</p>
+                <div class="flex items-baseline gap-1">
+                    <span class="text-4xl font-bold text-on-surface">$24</span>
+                    <span class="text-on-surface-variant text-sm">/mes</span>
+                </div>
+                <p class="text-xs text-secondary font-semibold mt-1">$199/año — ahorrás $89 USD</p>
+                <p class="text-sm text-on-surface-variant mt-2">Para pequeñas agencias y equipos de trabajo.</p>
+            </div>
+            <div class="space-y-3 mb-8 flex-1">
+                <div class="flex items-center gap-3 text-sm">
+                    <span class="material-symbols-outlined text-secondary flex-shrink-0" style="font-size:18px;font-variation-settings:'FILL' 1;">check_circle</span>
+                    <span class="text-on-surface">Todo lo de Pro</span>
+                </div>
+                @foreach (var f in new[] { "Hasta 5 usuarios", "Portal de cliente", "MercadoPago integrado", "Acceso a la API", "Soporte prioritario 24/7" })
+                {
+                    <div class="flex items-center gap-3 text-sm">
+                        <span class="material-symbols-outlined text-secondary flex-shrink-0" style="font-size:18px;font-variation-settings:'FILL' 1;">check_circle</span>
+                        <span class="text-on-surface">@f</span>
+                    </div>
+                }
+            </div>
+            @if (_subscription?.Tier == SubscriptionTier.Team)
+            {
+                <div class="w-full py-3 border-2 border-secondary text-center rounded-xl text-sm font-semibold text-secondary">Plan actual ✓</div>
+            }
+            else
+            {
+                <button class="w-full py-3 bg-secondary-container text-on-secondary-container rounded-xl text-sm font-semibold hover:brightness-95 transition-all">Upgrade a Team</button>
+            }
+        </div>
+    </div>
+
+    @* FAQ *@
+    <div class="max-w-2xl mx-auto">
+        <h3 class="text-2xl font-bold text-on-surface mb-6 text-center">Preguntas frecuentes</h3>
+        <div class="space-y-5">
+            @foreach (var faq in _faqs)
+            {
+                <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+                    <p class="text-sm font-semibold text-on-surface mb-2">@faq.Q</p>
+                    <p class="text-sm text-on-surface-variant">@faq.A</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private Application.Subscriptions.Dtos.SubscriptionDto? _subscription;
+
+    private int TrialDaysLeft => _subscription?.TrialEndsAt.HasValue == true
+        ? Math.Max(0, (int)(_subscription.TrialEndsAt.Value - DateTime.UtcNow).TotalDays)
+        : 0;
+
+    protected override async Task OnInitializedAsync() =>
+        _subscription = await Mediator.Send(new GetCurrentSubscriptionQuery());
+
+    private static readonly (string Q, string A)[] _faqs =
+    [
+        ("¿Puedo cancelar en cualquier momento?", "Sí, sin compromiso de permanencia. Si cancelás, seguís teniendo acceso hasta el final del ciclo pagado."),
+        ("¿Cómo funciona la facturación anual?", "Se realiza un único cobro por los 12 meses, lo que nos permite ofrecerte un descuento del 20% vs el pago mensual."),
+        ("¿Mis datos están seguros?", "Utilizamos encriptación de grado bancario y servidores redundantes. Tu información financiera está protegida en todo momento."),
+    ];
+}

@@ -1,0 +1,122 @@
+@page "/settings"
+@using InvoiceFlow.Application.Subscriptions.Queries.GetCurrentSubscription
+@using InvoiceFlow.Application.Clients.Queries.ListClients
+@using InvoiceFlow.Application.Invoicing.Queries.CountMonthlyInvoices
+@using InvoiceFlow.Application.Subscriptions.Dtos
+@using InvoiceFlow.Web.Components.Pages.Settings
+@using MediatR
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Configuración — InvoiceFlow</PageTitle>
+
+<div class="p-6">
+    <h1 class="text-3xl font-bold text-on-surface mb-7">Configuración</h1>
+
+    @if (_subscription is null)
+    {
+        <div class="flex items-center justify-center py-20">
+            <div class="flex items-center gap-3 text-on-surface-variant">
+                <span class="material-symbols-outlined" style="font-size:24px;">progress_activity</span>
+                <span class="text-sm">Cargando...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="flex gap-8 max-w-5xl">
+
+            <aside class="w-52 flex-shrink-0">
+                <nav class="space-y-1">
+                    <button @onclick='() => _activeTab = "account"' class="@TabClass("account") w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm">
+                        <span class="material-symbols-outlined" style="font-size:20px;">person</span>
+                        Cuenta
+                    </button>
+                    <button @onclick='() => _activeTab = "plan"' class="@TabClass("plan") w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm">
+                        <span class="material-symbols-outlined" style="font-size:20px;">credit_card</span>
+                        Plan y uso
+                    </button>
+                    <button @onclick='() => _activeTab = "features"' class="@TabClass("features") w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm">
+                        <span class="material-symbols-outlined" style="font-size:20px;">tune</span>
+                        Funcionalidades
+                    </button>
+                    <button @onclick='() => _activeTab = "notifications"' class="@TabClass("notifications") w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm">
+                        <span class="material-symbols-outlined" style="font-size:20px;">notifications</span>
+                        Notificaciones
+                    </button>
+                    <button @onclick='() => _activeTab = "taxes"' class="@TabClass("taxes") w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm">
+                        <span class="material-symbols-outlined" style="font-size:20px;">percent</span>
+                        Impuestos
+                    </button>
+                    <button @onclick='() => _activeTab = "payments"' class="@TabClass("payments") w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm">
+                        <span class="material-symbols-outlined" style="font-size:20px;">account_balance_wallet</span>
+                        Pagos online
+                    </button>
+                    <button @onclick='() => _activeTab = "danger"' class="w-full text-left flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm text-error hover:bg-error-container">
+                        <span class="material-symbols-outlined" style="font-size:20px;">warning</span>
+                        Zona peligrosa
+                    </button>
+                </nav>
+            </aside>
+
+            <div class="flex-1 space-y-5">
+                @switch (_activeTab)
+                {
+                    case "account":
+                        <AccountTab />
+                        break;
+                    case "plan":
+                        <PlanTab Subscription="_subscription" ClientCount="_clientCount" MonthlyCount="_monthlyCount" />
+                        break;
+                    case "features":
+                        <FeaturesTab Subscription="_subscription" />
+                        break;
+                    case "notifications":
+                        <NotificationsTab Subscription="_subscription" OnSubscriptionChanged="ReloadSubscriptionAsync" />
+                        break;
+                    case "taxes":
+                        <TaxesTab Subscription="_subscription" OnSubscriptionChanged="ReloadSubscriptionAsync" />
+                        break;
+                    case "payments":
+                        <PaymentsTab Subscription="_subscription" OnSubscriptionChanged="ReloadSubscriptionAsync" />
+                        break;
+                    case "danger":
+                        <DangerTab />
+                        break;
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private SubscriptionDto? _subscription;
+    private int _clientCount;
+    private int _monthlyCount;
+    private string _activeTab = "account";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var now = DateTime.Today;
+        var subTask = Mediator.Send(new GetCurrentSubscriptionQuery());
+        var clientsTask = Mediator.Send(new ListClientsQuery(1, 1));
+        var monthlyCountTask = Mediator.Send(new CountMonthlyInvoicesQuery(now.Year, now.Month));
+
+        await Task.WhenAll(subTask, clientsTask, monthlyCountTask);
+
+        _subscription = await subTask;
+        _clientCount = (await clientsTask).TotalCount;
+        _monthlyCount = await monthlyCountTask;
+    }
+
+    private async Task ReloadSubscriptionAsync()
+    {
+        _subscription = await Mediator.Send(new GetCurrentSubscriptionQuery());
+    }
+
+    private string TabClass(string tab) => _activeTab == tab
+        ? "bg-surface-container-lowest shadow-sm border border-outline-variant text-secondary font-semibold"
+        : "text-on-surface-variant hover:bg-surface-container-high";
+}

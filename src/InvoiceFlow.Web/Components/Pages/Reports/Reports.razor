@@ -1,0 +1,305 @@
+@page "/reports"
+@using InvoiceFlow.Application.Invoicing.Queries.GetReportMetrics
+@using InvoiceFlow.Application.Subscriptions.Queries.GetCurrentSubscription
+@using MediatR
+@inject IMediator Mediator
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Reportes — InvoiceFlow</PageTitle>
+
+<div class="p-6">
+
+    @* Header *@
+    <div class="flex justify-between items-end mb-7">
+        <div>
+            <h1 class="text-3xl font-bold text-on-surface">Reportes Financieros</h1>
+            <p class="text-base text-on-surface-variant mt-1">Monitoreá el crecimiento de tu negocio en tiempo real.</p>
+        </div>
+        @if (_subscription is not null && !_subscription.ReportsEnabled)
+        {
+            <a href="/pricing" class="flex items-center gap-2 bg-secondary text-on-secondary px-5 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all shadow-sm">
+                <span class="material-symbols-outlined" style="font-size:18px;">star</span>
+                Actualizar a Pro
+            </a>
+        }
+    </div>
+
+    @if (_metrics is null)
+    {
+        <div class="flex items-center justify-center py-20">
+            <div class="flex items-center gap-3 text-on-surface-variant">
+                <span class="material-symbols-outlined" style="font-size:24px;">progress_activity</span>
+                <span class="text-sm">Cargando reportes...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* KPI Cards *@
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-7">
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm space-y-3">
+                <div class="flex justify-between items-start">
+                    <div class="w-10 h-10 bg-secondary-container/20 rounded-full flex items-center justify-center">
+                        <span class="material-symbols-outlined text-secondary" style="font-size:20px;">payments</span>
+                    </div>
+                    <span class="text-xs font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">Todo el tiempo</span>
+                </div>
+                <div>
+                    <p class="text-xs text-on-surface-variant font-semibold uppercase tracking-wider mb-1">Ingresos totales</p>
+                    <p class="text-2xl font-bold text-on-surface" style="font-family:'JetBrains Mono',monospace;">$@(_metrics.TotalIncome.ToString("N2"))</p>
+                </div>
+            </div>
+
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm space-y-3">
+                <div class="flex justify-between items-start">
+                    <div class="w-10 h-10 bg-surface-container-high rounded-full flex items-center justify-center">
+                        <span class="material-symbols-outlined text-on-surface-variant" style="font-size:20px;">receipt_long</span>
+                    </div>
+                    <span class="text-xs font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full border border-outline-variant">Promedio</span>
+                </div>
+                <div>
+                    <p class="text-xs text-on-surface-variant font-semibold uppercase tracking-wider mb-1">Ticket promedio</p>
+                    <p class="text-2xl font-bold text-on-surface" style="font-family:'JetBrains Mono',monospace;">$@(_metrics.AvgTicket.ToString("N2"))</p>
+                </div>
+            </div>
+
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm space-y-3">
+                <div class="flex justify-between items-start">
+                    <div class="w-10 h-10 bg-secondary-container rounded-full flex items-center justify-center">
+                        <span class="material-symbols-outlined text-on-secondary-container" style="font-size:20px;font-variation-settings:'FILL' 1;">check_circle</span>
+                    </div>
+                    <span class="text-xs font-bold text-secondary bg-secondary-container/20 px-2 py-0.5 rounded-full border border-secondary/20">Tasa</span>
+                </div>
+                <div>
+                    <p class="text-xs text-on-surface-variant font-semibold uppercase tracking-wider mb-1">Tasa de cobro</p>
+                    <p class="text-2xl font-bold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@(_metrics.CollectionRate.ToString("F1"))%</p>
+                </div>
+            </div>
+
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm space-y-3">
+                <div class="flex justify-between items-start">
+                    <div class="w-10 h-10 bg-surface-container-high rounded-full flex items-center justify-center">
+                        <span class="material-symbols-outlined text-on-surface-variant" style="font-size:20px;">description</span>
+                    </div>
+                    <span class="text-xs font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full border border-outline-variant">Total</span>
+                </div>
+                <div>
+                    <p class="text-xs text-on-surface-variant font-semibold uppercase tracking-wider mb-1">Total facturas</p>
+                    <p class="text-2xl font-bold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@_metrics.TotalInvoices</p>
+                    <p class="text-xs text-on-surface-variant mt-1">@_metrics.PaidInvoices cobradas · @_metrics.PendingInvoices pendientes</p>
+                </div>
+            </div>
+        </div>
+
+        @* Chart + Status Distribution *@
+        <div class="grid grid-cols-12 gap-5 mb-7">
+            @* Bar Chart *@
+            <div class="col-span-12 lg:col-span-8 bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 class="text-base font-semibold text-on-surface">Ingresos Mensuales</h3>
+                        <p class="text-sm text-on-surface-variant">Cobros del año en curso</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                        <span class="w-2.5 h-2.5 rounded-full bg-secondary inline-block"></span>
+                        <span class="text-on-surface-variant">Cobrado</span>
+                    </div>
+                </div>
+                <div class="h-40 flex items-end gap-2">
+                    @foreach (var m in GetChartBars())
+                    {
+                        <div class="flex-1 flex flex-col items-center gap-1">
+                            <div class="w-full @(m.IsCurrentMonth ? "bg-secondary" : "bg-secondary/30") rounded-t transition-all hover:opacity-80" style="height:@(m.Height)px;min-height:4px;"></div>
+                            <span class="text-[10px] text-on-surface-variant font-mono uppercase">@m.Label</span>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* Status Distribution *@
+            <div class="col-span-12 lg:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm flex flex-col">
+                <h3 class="text-base font-semibold text-on-surface mb-1">Estado facturas</h3>
+                <p class="text-sm text-on-surface-variant mb-6">Distribución actual</p>
+                <div class="flex-1 flex flex-col gap-3 justify-center">
+                    <div class="flex items-center justify-between text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>
+                            <span class="text-on-surface-variant">Cobradas</span>
+                        </div>
+                        <span class="font-semibold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@_metrics.PaidInvoices</span>
+                    </div>
+                    <div class="flex items-center justify-between text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 inline-block"></span>
+                            <span class="text-on-surface-variant">Enviadas</span>
+                        </div>
+                        <span class="font-semibold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@_metrics.SentInvoices</span>
+                    </div>
+                    <div class="flex items-center justify-between text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+                            <span class="text-on-surface-variant">Vencidas</span>
+                        </div>
+                        <span class="font-semibold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@_metrics.OverdueInvoices</span>
+                    </div>
+                    <div class="flex items-center justify-between text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-gray-300 inline-block"></span>
+                            <span class="text-on-surface-variant">Borradores</span>
+                        </div>
+                        <span class="font-semibold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@_metrics.DraftInvoices</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Top Clients *@
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden mb-7">
+            <div class="px-5 py-4 border-b border-outline-variant flex justify-between items-center">
+                <h3 class="text-base font-semibold text-on-surface">Top Clientes por ingresos</h3>
+                <a href="/clients" class="text-sm font-semibold text-secondary hover:underline flex items-center gap-1">
+                    Ver todos
+                    <span class="material-symbols-outlined" style="font-size:14px;">arrow_forward</span>
+                </a>
+            </div>
+            @if (_metrics.TopClients.Any())
+            {
+                <table class="w-full text-left">
+                    <thead class="bg-surface-container-low">
+                        <tr>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Cliente</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Facturas</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Total cobrado</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Pendiente</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        @foreach (var c in _metrics.TopClients)
+                        {
+                            <tr class="hover:bg-surface-container-low transition-colors">
+                                <td class="px-5 py-3.5">
+                                    <div class="flex items-center gap-3">
+                                        <ClientInitialsAvatar Name="@c.Name" />
+                                        <div>
+                                            <p class="text-sm font-semibold text-on-surface">@c.Name</p>
+                                            <p class="text-xs text-on-surface-variant">@c.Email</p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-5 py-3.5 text-sm text-on-surface-variant" style="font-family:'JetBrains Mono',monospace;">@c.TotalInvoices</td>
+                                <td class="px-5 py-3.5 text-sm font-semibold text-green-700 text-right" style="font-family:'JetBrains Mono',monospace;">$@c.TotalPaid.ToString("N2")</td>
+                                <td class="px-5 py-3.5 text-sm font-semibold text-amber-700 text-right" style="font-family:'JetBrains Mono',monospace;">$@c.TotalPending.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                    <span class="material-symbols-outlined text-outline-variant" style="font-size:48px;">group</span>
+                    <p class="text-sm text-on-surface-variant">No hay datos suficientes todavía.</p>
+                </div>
+            }
+        </div>
+
+        @* Pro Gate: Monthly Table *@
+        @if (_subscription is not null && !_subscription.ReportsEnabled)
+        {
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-12 shadow-sm flex flex-col items-center text-center gap-4">
+                <div class="w-16 h-16 bg-secondary-container rounded-full flex items-center justify-center">
+                    <span class="material-symbols-outlined text-on-secondary-container" style="font-size:28px;">bar_chart</span>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-on-surface mb-2">Reportes avanzados en Plan Pro</h2>
+                    <p class="text-sm text-on-surface-variant max-w-md">Accedé a gráficos de ingresos mensuales, distribución por moneda, tendencias de cobro y exportación a CSV.</p>
+                </div>
+                <a href="/pricing" class="flex items-center gap-2 bg-secondary text-on-secondary px-5 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 transition-all shadow-sm">
+                    <span class="material-symbols-outlined" style="font-size:16px;">star</span>
+                    Ver planes
+                </a>
+            </div>
+        }
+        else if (_subscription?.ReportsEnabled == true && _metrics.MonthlyStats.Any())
+        {
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+                <div class="px-5 py-4 border-b border-outline-variant">
+                    <h3 class="text-base font-semibold text-on-surface">Ingresos por mes</h3>
+                </div>
+                <table class="w-full text-left">
+                    <thead class="bg-surface-container-low">
+                        <tr>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Mes</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Facturas</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Cobrado</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Pendiente</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        @foreach (var m in _metrics.MonthlyStats.Take(InvoiceFlowConstants.MonthlyStatsTableMaxRows))
+                        {
+                            <tr class="hover:bg-surface-container-low transition-colors">
+                                <td class="px-5 py-3.5 text-sm font-medium text-on-surface">@m.Label</td>
+                                <td class="px-5 py-3.5 text-sm text-on-surface-variant text-right" style="font-family:'JetBrains Mono',monospace;">@m.Count</td>
+                                <td class="px-5 py-3.5 text-sm font-semibold text-green-700 text-right" style="font-family:'JetBrains Mono',monospace;">$@m.Paid.ToString("N2")</td>
+                                <td class="px-5 py-3.5 text-sm font-semibold text-amber-700 text-right" style="font-family:'JetBrains Mono',monospace;">$@m.Pending.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private Application.Subscriptions.Dtos.SubscriptionDto? _subscription;
+    private ReportMetricsResult? _metrics;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var subTask     = Mediator.Send(new GetCurrentSubscriptionQuery());
+        var metricsTask = Mediator.Send(new GetReportMetricsQuery());
+
+        await Task.WhenAll(subTask, metricsTask);
+
+        _subscription = await subTask;
+        _metrics      = await metricsTask;
+    }
+
+    private List<ChartBar> GetChartBars()
+    {
+        if (_metrics is null) return [];
+
+        var months    = new[] { "ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC" };
+        var now       = DateTime.Today;
+        var maxHeight = InvoiceFlowConstants.ChartMaxBarHeightPx;
+
+        var last7 = Enumerable.Range(0, InvoiceFlowConstants.ChartLookbackMonths + 1)
+                               .Select(i => now.AddMonths(-(InvoiceFlowConstants.ChartLookbackMonths - i)))
+                               .ToList();
+
+        var maxIncome = _metrics.MonthlyStats.Any() ? (double)_metrics.MonthlyStats.Max(m => m.Paid) : 1;
+        if (maxIncome == 0) maxIncome = 1;
+
+        return last7.Select(d =>
+        {
+            var stat   = _metrics.MonthlyStats.FirstOrDefault(m => m.Label == d.ToString("MMMM yyyy"));
+            var height = stat is not null ? (int)((double)stat.Paid / maxIncome * maxHeight) : 4;
+            return new ChartBar
+            {
+                Label          = months[d.Month - 1],
+                Height         = Math.Max(4, height),
+                IsCurrentMonth = d.Month == now.Month && d.Year == now.Year
+            };
+        }).ToList();
+    }
+
+    private sealed class ChartBar
+    {
+        public string Label          { get; set; } = "";
+        public int    Height         { get; set; }
+        public bool   IsCurrentMonth { get; set; }
+    }
+}

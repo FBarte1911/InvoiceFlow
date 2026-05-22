@@ -1,0 +1,67 @@
+@using InvoiceFlow.Application.Subscriptions.Dtos
+
+<section class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-on-surface mb-5">Plan y uso</h2>
+
+    <div class="flex items-center justify-between p-4 bg-surface-container-low rounded-xl border border-outline-variant mb-6">
+        <div>
+            <p class="text-base font-bold text-on-surface">Plan @Subscription.Tier</p>
+            <p class="text-sm text-on-surface-variant mt-0.5">
+                @if (Subscription.IsTrialActive && Subscription.TrialEndsAt.HasValue)
+                {
+                    <span>Trial activo — vence el @Subscription.TrialEndsAt.Value.ToString("dd/MM/yyyy")</span>
+                }
+                else if (Subscription.PeriodEndsAt.HasValue)
+                {
+                    <span>Renovación el @Subscription.PeriodEndsAt.Value.ToString("dd/MM/yyyy")</span>
+                }
+                else
+                {
+                    <span>Plan gratuito</span>
+                }
+            </p>
+        </div>
+        <a href="/pricing" class="px-4 py-2 bg-secondary text-on-secondary rounded-lg text-sm font-semibold hover:opacity-90 transition-all">Cambiar plan</a>
+    </div>
+
+    <div class="space-y-5">
+        @{
+            var clientPct = Subscription.MaxClients > 0 ? Math.Min(100, ClientCount * 100 / Subscription.MaxClients) : 5;
+            var clientColor = UsageBarColor(clientPct);
+        }
+        <div>
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-medium text-on-surface">Clientes activos</span>
+                <span class="text-sm font-semibold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@ClientCount / @(Subscription.MaxClients == -1 ? "∞" : Subscription.MaxClients.ToString())</span>
+            </div>
+            <div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+                <div class="h-full @clientColor rounded-full transition-all" style="width:@clientPct%"></div>
+            </div>
+        </div>
+
+        @{
+            var invPct = Subscription.MaxInvoicesPerMonth > 0 ? Math.Min(100, MonthlyCount * 100 / Subscription.MaxInvoicesPerMonth) : 5;
+            var invColor = UsageBarColor(invPct);
+        }
+        <div>
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm font-medium text-on-surface">Facturas este mes</span>
+                <span class="text-sm font-semibold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@MonthlyCount / @(Subscription.MaxInvoicesPerMonth == -1 ? "∞" : Subscription.MaxInvoicesPerMonth.ToString())</span>
+            </div>
+            <div class="w-full h-2 bg-surface-container rounded-full overflow-hidden">
+                <div class="h-full @invColor rounded-full transition-all" style="width:@invPct%"></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public SubscriptionDto Subscription { get; set; } = default!;
+    [Parameter, EditorRequired] public int ClientCount { get; set; }
+    [Parameter, EditorRequired] public int MonthlyCount { get; set; }
+
+    private static string UsageBarColor(int pct) =>
+        pct >= InvoiceFlowConstants.UsageBarCriticalPercent ? "bg-error" :
+        pct >= InvoiceFlowConstants.UsageBarWarningPercent  ? "bg-amber-500" :
+        "bg-secondary";
+}

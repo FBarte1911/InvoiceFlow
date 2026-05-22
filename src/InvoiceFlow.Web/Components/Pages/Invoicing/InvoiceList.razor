@@ -1,0 +1,364 @@
+@page "/invoices"
+@using InvoiceFlow.Application.Invoicing.Commands.DeleteDraftInvoice
+@using InvoiceFlow.Application.Invoicing.Commands.DuplicateInvoice
+@using InvoiceFlow.Application.Invoicing.Dtos
+@using InvoiceFlow.Application.Invoicing.Queries.ListCreditNotes
+@using InvoiceFlow.Application.Invoicing.Queries.ListInvoices
+@using InvoiceFlow.Domain.Invoicing
+@using MediatR
+@inject IMediator Mediator
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Facturas — InvoiceFlow</PageTitle>
+
+<div class="p-6">
+    @* Page Header *@
+    <div class="flex justify-between items-end mb-7">
+        <div>
+            <h1 class="text-3xl font-bold text-on-surface">Facturas</h1>
+            <p class="text-base text-on-surface-variant mt-1">Gestiona y realiza seguimiento de tus cobros.</p>
+        </div>
+        <a href="/invoices/new" class="flex items-center gap-2 bg-secondary text-on-secondary px-5 py-2.5 rounded-lg text-sm font-semibold hover:brightness-110 active:scale-[0.98] transition-all shadow-sm">
+            <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+            Nueva Factura
+        </a>
+    </div>
+
+    @* Filter Tabs *@
+    <div class="flex gap-1 p-1 bg-surface-container-low rounded-xl border border-outline-variant mb-6 w-fit">
+        <button @onclick='() => SetFilter(null)'
+            class="@InvoiceTabClass(null)">
+            Todas
+        </button>
+        <button @onclick='() => SetFilter(InvoiceStatus.Sent)'
+            class="@InvoiceTabClass(InvoiceStatus.Sent)">
+            Enviadas
+        </button>
+        <button @onclick='() => SetFilter(InvoiceStatus.Paid)'
+            class="@InvoiceTabClass(InvoiceStatus.Paid)">
+            Cobradas
+        </button>
+        <button @onclick='() => SetFilter(InvoiceStatus.Overdue)'
+            class="@InvoiceTabClass(InvoiceStatus.Overdue)">
+            Vencidas
+        </button>
+        <button @onclick='() => SetFilter(InvoiceStatus.Draft)'
+            class="@InvoiceTabClass(InvoiceStatus.Draft)">
+            Borradores
+        </button>
+        <button @onclick="ShowCreditNotesAsync"
+            class="@(_showCreditNotes ? "px-5 py-2 rounded-lg bg-surface text-secondary font-semibold shadow-sm text-sm" : "px-5 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors text-sm")">
+            Notas de crédito
+        </button>
+    </div>
+
+    @if (_showCreditNotes)
+    {
+        @* Credit Notes Filter *@
+        @if (_invoicesForDropdown is not null && _invoicesForDropdown.Items.Any())
+        {
+            <div class="mb-4">
+                <select @onchange="OnCreditNoteFilterChangedAsync"
+                    class="px-3 py-2 rounded-lg border border-outline-variant bg-surface text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-secondary/40">
+                    <option value="">Todas las facturas</option>
+                    @foreach (var inv in _invoicesForDropdown.Items)
+                    {
+                        <option value="@inv.Id">@inv.Number — @inv.ClientName</option>
+                    }
+                </select>
+            </div>
+        }
+
+        @* Credit Notes Table *@
+        @if (_cnResult is null)
+        {
+            <div class="flex items-center justify-center py-20">
+                <div class="flex items-center gap-3 text-on-surface-variant">
+                    <span class="material-symbols-outlined animate-spin" style="font-size:24px;">progress_activity</span>
+                    <span class="text-sm">Cargando notas de crédito...</span>
+                </div>
+            </div>
+        }
+        else if (!_cnResult.Items.Any())
+        {
+            <div class="flex flex-col items-center justify-center py-20 gap-4 text-center">
+                <span class="material-symbols-outlined text-outline-variant" style="font-size:56px;">receipt_long</span>
+                <div>
+                    <p class="text-base font-semibold text-on-surface mb-1">No hay notas de crédito</p>
+                    <p class="text-sm text-on-surface-variant">Las notas de crédito creadas aparecerán aquí.</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="bg-surface rounded-xl border border-outline-variant shadow-sm overflow-hidden mb-6">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-outline-variant">
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider"># NC</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Cliente</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Monto</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Factura original</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Estado</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Fecha</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        @foreach (var cn in _cnResult.Items)
+                        {
+                            <tr class="hover:bg-surface-container-low transition-colors">
+                                <td class="px-5 py-3.5 text-sm text-on-surface-variant" style="font-family: 'JetBrains Mono', monospace;">@cn.Number</td>
+                                <td class="px-5 py-3.5 text-sm font-semibold text-on-surface">@cn.ClientName</td>
+                                <td class="px-5 py-3.5 text-sm font-bold text-on-surface text-right" style="font-family: 'JetBrains Mono', monospace;">@cn.Currency @cn.Amount.ToString("N2")</td>
+                                <td class="px-5 py-3.5 text-sm text-on-surface-variant" style="font-family: 'JetBrains Mono', monospace;">@cn.OriginalInvoiceNumber</td>
+                                <td class="px-5 py-3.5 text-sm text-on-surface-variant">@cn.Status</td>
+                                <td class="px-5 py-3.5 text-sm text-on-surface-variant">@cn.IssuedAt.ToString("dd MMM yyyy")</td>
+                                <td class="px-5 py-3.5 text-right">
+                                    <a href="/api/credit-notes/@cn.Id/pdf" target="_blank"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium border border-outline-variant rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors">
+                                        <span class="material-symbols-outlined" style="font-size:14px;">download</span>
+                                        PDF
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                @* CN Pagination *@
+                <div class="px-5 py-4 border-t border-outline-variant flex justify-between items-center bg-surface">
+                    <span class="text-sm text-on-surface-variant">
+                        Página @_cnPage de @_cnResult.TotalPages · @_cnResult.TotalCount nota@(_cnResult.TotalCount != 1 ? "s" : "")
+                    </span>
+                    <div class="flex gap-2">
+                        <button @onclick="CnPreviousPage" disabled="@(_cnPage <= 1)"
+                            class="px-4 py-2 border border-outline-variant rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            Anterior
+                        </button>
+                        <button @onclick="CnNextPage" disabled="@(_cnPage >= _cnResult.TotalPages)"
+                            class="px-4 py-2 border border-outline-variant rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            Siguiente
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        @* Invoice list *@
+        @if (_result is null)
+        {
+            <div class="flex items-center justify-center py-20">
+                <div class="flex items-center gap-3 text-on-surface-variant">
+                    <span class="material-symbols-outlined animate-spin" style="font-size:24px;">progress_activity</span>
+                    <span class="text-sm">Cargando facturas...</span>
+                </div>
+            </div>
+        }
+        else if (!_result.Items.Any())
+        {
+            <div class="flex flex-col items-center justify-center py-20 gap-4 text-center">
+                <span class="material-symbols-outlined text-outline-variant" style="font-size:56px;">description</span>
+                <div>
+                    <p class="text-base font-semibold text-on-surface mb-1">No se encontraron facturas</p>
+                    <p class="text-sm text-on-surface-variant">Creá tu primera factura para empezar a cobrar.</p>
+                </div>
+                <a href="/invoices/new" class="bg-secondary text-on-secondary text-sm font-semibold px-5 py-2.5 rounded-lg hover:brightness-110 transition-all">Crear factura</a>
+            </div>
+        }
+        else
+        {
+            @* Invoice Table *@
+            <div class="bg-surface rounded-xl border border-outline-variant shadow-sm overflow-hidden mb-6">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-outline-variant">
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider"># Número</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Cliente</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Monto</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Estado</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Fecha</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Vencimiento</th>
+                            <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        @foreach (var inv in _result.Items)
+                        {
+                            <tr class="hover:bg-surface-container-low transition-colors group">
+                                <td class="px-5 py-3.5 text-sm text-on-surface-variant" style="font-family: 'JetBrains Mono', monospace;">@inv.Number</td>
+                                <td class="px-5 py-3.5">
+                                    <div class="flex items-center gap-3">
+                                        <ClientInitialsAvatar Name="@inv.ClientName" />
+                                        <div>
+                                            <div class="text-sm font-semibold text-on-surface">@inv.ClientName</div>
+                                            <div class="text-xs text-on-surface-variant">@inv.ClientEmail</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-5 py-3.5 text-sm font-bold text-on-surface" style="font-family: 'JetBrains Mono', monospace;">@inv.Currency @inv.Total.ToString("N2")</td>
+                                <td class="px-5 py-3.5"><InvoiceStatusBadge Status="@inv.Status" /></td>
+                                <td class="px-5 py-3.5 text-sm text-on-surface-variant">@inv.IssueDate.ToString("dd MMM yyyy")</td>
+                                <td class="px-5 py-3.5 text-sm @(inv.IsVisuallyOverdue() ? "text-error font-medium" : "text-on-surface-variant")">
+                                    @inv.DueDate.ToString("dd MMM yyyy")
+                                </td>
+                                <td class="px-5 py-3.5 text-right">
+                                    <div class="flex items-center justify-end gap-2">
+                                        <a href="/invoices/@inv.Id" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-outline-variant rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors">
+                                            <span class="material-symbols-outlined" style="font-size:14px;">visibility</span>
+                                            Ver
+                                        </a>
+                                        <button @onclick="() => DuplicateAsync(inv.Id)"
+                                            class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-outline-variant rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors">
+                                            <span class="material-symbols-outlined" style="font-size:14px;">content_copy</span>
+                                            Duplicar
+                                        </button>
+                                        @if (inv.Status == InvoiceStatus.Draft)
+                                        {
+                                            <button @onclick="() => DeleteDraftAsync(inv.Id)" disabled="@_isDeleting"
+                                                class="p-1.5 text-error hover:bg-error-container rounded-lg transition-colors disabled:opacity-50">
+                                                <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                @* Pagination *@
+                <div class="px-5 py-4 border-t border-outline-variant flex justify-between items-center bg-surface">
+                    <span class="text-sm text-on-surface-variant">
+                        Página @_currentPage de @_result.TotalPages · @_result.TotalCount factura@(_result.TotalCount != 1 ? "s" : "")
+                    </span>
+                    <div class="flex gap-2">
+                        <button @onclick="PreviousPage" disabled="@(_currentPage <= 1)"
+                            class="px-4 py-2 border border-outline-variant rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            Anterior
+                        </button>
+                        <button @onclick="NextPage" disabled="@(_currentPage >= _result.TotalPages)"
+                            class="px-4 py-2 border border-outline-variant rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            Siguiente
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            @* Cash Flow Summary *@
+            <div class="grid grid-cols-12 gap-5">
+                <div class="col-span-8 bg-surface-container p-6 rounded-xl border border-outline-variant">
+                    <div class="flex justify-between items-start mb-5">
+                        <div>
+                            <h3 class="text-lg font-semibold text-on-surface">Flujo de Caja</h3>
+                            <p class="text-sm text-on-surface-variant">Resumen de ingresos recientes</p>
+                        </div>
+                    </div>
+                    <div class="h-24 flex items-end gap-2 w-full">
+                        <div class="flex-1 bg-secondary-container h-[40%] rounded-t opacity-60"></div>
+                        <div class="flex-1 bg-secondary-container h-[65%] rounded-t opacity-70"></div>
+                        <div class="flex-1 bg-secondary-container h-[55%] rounded-t opacity-70"></div>
+                        <div class="flex-1 bg-secondary-container h-[90%] rounded-t opacity-80"></div>
+                        <div class="flex-1 bg-secondary-container h-[75%] rounded-t opacity-90"></div>
+                        <div class="flex-1 bg-secondary h-[95%] rounded-t"></div>
+                    </div>
+                </div>
+                <div class="col-span-4 bg-primary text-white p-6 rounded-xl flex flex-col justify-between relative overflow-hidden">
+                    <div class="relative z-10">
+                        <span class="text-sm opacity-80">Por cobrar</span>
+                        <h4 class="text-2xl font-bold mt-1" style="font-family: 'JetBrains Mono', monospace;">...</h4>
+                    </div>
+                    <a href="/reports" class="relative z-10 bg-white/10 hover:bg-white/20 py-2 rounded-lg text-sm font-semibold transition-colors text-center">Ver Reportes</a>
+                    <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-secondary opacity-20 rounded-full blur-3xl"></div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private ListInvoicesResult? _result;
+    private int _currentPage = 1;
+    private InvoiceStatus? _statusFilter;
+    private bool _isDeleting;
+
+    private bool _showCreditNotes;
+    private ListCreditNotesResult? _cnResult;
+    private Guid? _cnInvoiceFilter;
+    private int _cnPage = 1;
+    private ListInvoicesResult? _invoicesForDropdown;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() =>
+        _result = await Mediator.Send(new ListInvoicesQuery(_currentPage, InvoiceFlowConstants.DefaultPageSize, _statusFilter));
+
+    private async Task SetFilter(InvoiceStatus? status)
+    {
+        _showCreditNotes = false;
+        _statusFilter = status;
+        _currentPage = 1;
+        await LoadAsync();
+    }
+
+    private async Task ShowCreditNotesAsync()
+    {
+        _showCreditNotes = true;
+        _statusFilter = null;
+        _cnPage = 1;
+        _cnInvoiceFilter = null;
+        await Task.WhenAll(LoadCreditNotesAsync(), LoadInvoicesForDropdownAsync());
+    }
+
+    private async Task LoadCreditNotesAsync() =>
+        _cnResult = await Mediator.Send(new ListCreditNotesQuery(_cnPage, InvoiceFlowConstants.DefaultPageSize, _cnInvoiceFilter));
+
+    private async Task LoadInvoicesForDropdownAsync()
+    {
+        if (_invoicesForDropdown is null)
+            _invoicesForDropdown = await Mediator.Send(new ListInvoicesQuery(1, 100));
+    }
+
+    private async Task OnCreditNoteFilterChangedAsync(ChangeEventArgs e)
+    {
+        _cnInvoiceFilter = Guid.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        _cnPage = 1;
+        await LoadCreditNotesAsync();
+    }
+
+    private async Task CnPreviousPage() { _cnPage--; await LoadCreditNotesAsync(); }
+    private async Task CnNextPage()     { _cnPage++; await LoadCreditNotesAsync(); }
+
+    private async Task PreviousPage() { _currentPage--; await LoadAsync(); }
+    private async Task NextPage()     { _currentPage++; await LoadAsync(); }
+
+    private async Task DuplicateAsync(Guid invoiceId)
+    {
+        var newId = await Mediator.Send(new DuplicateInvoiceCommand(invoiceId));
+        Nav.NavigateTo($"/invoices/{newId}");
+    }
+
+    private async Task DeleteDraftAsync(Guid invoiceId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "¿Eliminar este borrador?"))
+            return;
+        _isDeleting = true;
+        try
+        {
+            await Mediator.Send(new DeleteDraftInvoiceCommand(invoiceId));
+            await LoadAsync();
+        }
+        catch { }
+        finally { _isDeleting = false; }
+    }
+
+    private string InvoiceTabClass(InvoiceStatus? status) =>
+        !_showCreditNotes && _statusFilter == status
+            ? "px-5 py-2 rounded-lg bg-surface text-secondary font-semibold shadow-sm text-sm"
+            : "px-5 py-2 rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors text-sm";
+}

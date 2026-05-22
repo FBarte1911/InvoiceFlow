@@ -1,0 +1,364 @@
+@page "/invoices/new"
+@using InvoiceFlow.Application.Clients.Queries.ListClients
+@using InvoiceFlow.Application.Invoicing.Commands.CreateInvoice
+@using InvoiceFlow.Application.Subscriptions.Queries.GetCurrentSubscription
+@using InvoiceFlow.Domain.Invoicing
+@using InvoiceFlow.Domain.Shared
+@using MediatR
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Nueva Factura — InvoiceFlow</PageTitle>
+
+<div class="p-6 flex gap-8">
+
+    @* Left: Form *@
+    <div class="flex-1 space-y-6 min-w-0">
+        <header>
+            <div class="flex items-center gap-2 text-on-surface-variant mb-2">
+                <a href="/invoices" class="text-sm hover:text-secondary transition-colors">Facturas</a>
+                <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+                <span class="text-sm font-semibold text-on-surface">Nueva Factura</span>
+            </div>
+            <h1 class="text-3xl font-bold text-on-surface">Crear nueva factura</h1>
+        </header>
+
+        <EditForm Model="_model" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+
+            @* General Info Card *@
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm space-y-5">
+                <div>
+                    <label class="block text-sm font-semibold text-on-surface mb-2">Cliente</label>
+                    <div class="relative">
+                        <select @bind="_model.ClientId" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm appearance-none focus:ring-2 focus:ring-secondary-container focus:border-secondary outline-none transition-all">
+                            <option value="">Seleccionar un cliente existente...</option>
+                            @foreach (var client in _clients)
+                            {
+                                <option value="@client.Id">@client.Name — @client.Email</option>
+                            }
+                        </select>
+                        <span class="material-symbols-outlined absolute right-4 top-3.5 pointer-events-none text-on-surface-variant" style="font-size:18px;">expand_more</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-on-surface mb-2">Fecha de emisión</label>
+                        <input type="date" @bind="_model.IssueDate" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-secondary-container focus:border-secondary outline-none transition-all" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-on-surface mb-2">Fecha de vencimiento</label>
+                        <input type="date" @bind="_model.DueDate" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-secondary-container focus:border-secondary outline-none transition-all" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-on-surface mb-2">Moneda</label>
+                        <div class="relative">
+                            <select @bind="_model.Currency" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm appearance-none focus:ring-2 focus:ring-secondary-container outline-none transition-all">
+                                @foreach (var currency in Enum.GetValues<Currency>())
+                                {
+                                    <option value="@currency">@currency</option>
+                                }
+                            </select>
+                            <span class="material-symbols-outlined absolute right-4 top-3.5 pointer-events-none text-on-surface-variant" style="font-size:18px;">expand_more</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* Items Card *@
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+                <div class="px-6 py-4 border-b border-outline-variant flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-on-surface">Conceptos</h3>
+                    <button type="button" @onclick="AddItem" class="flex items-center gap-2 text-secondary font-semibold hover:bg-secondary-container/10 px-4 py-2 rounded-lg transition-colors text-sm">
+                        <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+                        Añadir línea
+                    </button>
+                </div>
+                <table class="w-full text-left">
+                    <thead class="bg-surface-container-low text-on-surface-variant">
+                        <tr>
+                            <th class="px-5 py-3 text-xs font-semibold uppercase tracking-wider w-1/2">Descripción</th>
+                            <th class="px-5 py-3 text-xs font-semibold uppercase tracking-wider">Cantidad</th>
+                            <th class="px-5 py-3 text-xs font-semibold uppercase tracking-wider">Precio unit.</th>
+                            <th class="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-right">Total</th>
+                            <th class="px-5 py-3 w-10"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        @for (int i = 0; i < _items.Count; i++)
+                        {
+                            var index = i;
+                            var item = _items[index];
+                            <tr class="hover:bg-surface-container-low transition-colors">
+                                <td class="px-5 py-3">
+                                    <input placeholder="Descripción del servicio" @bind="item.Description" class="w-full bg-transparent border-none focus:ring-0 p-0 text-sm text-on-surface outline-none" />
+                                </td>
+                                <td class="px-5 py-3">
+                                    <input type="number" @bind="item.Quantity" min="0.01" step="0.01" class="w-20 bg-transparent border-none focus:ring-0 p-0 text-sm outline-none" style="font-family:'JetBrains Mono',monospace;" />
+                                </td>
+                                <td class="px-5 py-3">
+                                    <input type="number" @bind="item.UnitPrice" min="0" step="0.01" class="w-28 bg-transparent border-none focus:ring-0 p-0 text-sm outline-none" style="font-family:'JetBrains Mono',monospace;" />
+                                </td>
+                                <td class="px-5 py-3 text-right text-sm font-semibold text-on-surface" style="font-family:'JetBrains Mono',monospace;">
+                                    @_model.Currency @((item.Quantity * item.UnitPrice).ToString("N2"))
+                                </td>
+                                <td class="px-5 py-3">
+                                    <button type="button" @onclick="() => RemoveItem(index)" class="p-1 text-on-surface-variant hover:text-error hover:bg-error-container rounded transition-colors">
+                                        <span class="material-symbols-outlined" style="font-size:16px;">close</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @* Discount + Total *@
+            <div class="flex justify-end">
+                <div class="w-72 bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm space-y-3">
+                    <div class="flex justify-between items-center text-sm text-on-surface-variant">
+                        <span>Subtotal</span>
+                        <span style="font-family:'JetBrains Mono',monospace;">@_model.Currency @(Subtotal.ToString("N2"))</span>
+                    </div>
+
+                    <div class="space-y-2">
+                        <div class="relative">
+                            <select @bind="_model.DiscountType" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-sm appearance-none focus:ring-2 focus:ring-secondary-container outline-none transition-all">
+                                <option value="@DiscountType.None">Sin descuento</option>
+                                <option value="@DiscountType.Percentage">Porcentaje (%)</option>
+                                <option value="@DiscountType.FixedAmount">Monto fijo</option>
+                            </select>
+                            <span class="material-symbols-outlined absolute right-3 top-2.5 pointer-events-none text-on-surface-variant" style="font-size:16px;">expand_more</span>
+                        </div>
+                        @if (_model.DiscountType != DiscountType.None)
+                        {
+                            <div class="flex items-center gap-2">
+                                <input type="number" @bind="_model.DiscountValue" min="0" step="0.01"
+                                    max="@(_model.DiscountType == DiscountType.Percentage ? 100 : (double)Subtotal)"
+                                    class="flex-1 bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-secondary-container outline-none"
+                                    style="font-family:'JetBrains Mono',monospace;"
+                                    placeholder="@(_model.DiscountType == DiscountType.Percentage ? "0 – 100" : "0.00")" />
+                                <span class="text-sm text-on-surface-variant font-medium">@(_model.DiscountType == DiscountType.Percentage ? "%" : _model.Currency.ToString())</span>
+                            </div>
+                            <div class="flex justify-between items-center text-sm text-emerald-600">
+                                <span>Descuento</span>
+                                <span style="font-family:'JetBrains Mono',monospace;">- @_model.Currency @(DiscountAmount.ToString("N2"))</span>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Impuesto (%)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" @bind="_taxRate" min="0" max="100" step="0.01"
+                                class="flex-1 bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-secondary-container outline-none"
+                                style="font-family:'JetBrains Mono',monospace;" placeholder="0" />
+                            <span class="text-sm text-on-surface-variant font-medium">%</span>
+                        </div>
+                        @if (_taxRate > 0)
+                        {
+                            <div class="flex justify-between items-center text-sm text-blue-600">
+                                <span>@(_subscriptionTaxLabel) (@_taxRate:G%)</span>
+                                <span style="font-family:'JetBrains Mono',monospace;">+ @_model.Currency @(TaxAmount.ToString("N2"))</span>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="pt-3 border-t border-outline-variant flex justify-between items-center">
+                        <span class="font-bold text-on-surface">Total</span>
+                        <span class="text-xl font-bold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@_model.Currency @(FinalTotal.ToString("N2"))</span>
+                    </div>
+                </div>
+            </div>
+
+            @* Notes *@
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-sm">
+                <label class="block text-sm font-semibold text-on-surface mb-2">Notas (opcional)</label>
+                <textarea @bind="_model.Notes" rows="3" placeholder="Condiciones de pago, información bancaria, agradecimiento..." class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-secondary-container focus:border-secondary outline-none transition-all resize-none"></textarea>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="flex items-center gap-3 p-4 bg-error-container text-on-error-container rounded-xl border border-error/20 text-sm">
+                    <span class="material-symbols-outlined" style="font-size:20px;">error</span>
+                    @_error
+                </div>
+            }
+
+            @* Action Bar *@
+            <div class="flex items-center justify-between pt-2">
+                <button type="button" @onclick="Cancel" class="px-5 py-2.5 border border-outline-variant rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" disabled="@_isSubmitting" class="flex items-center gap-2 px-6 py-2.5 bg-secondary text-on-secondary rounded-lg text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    @if (_isSubmitting)
+                    {
+                        <span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span>
+                        <span>Guardando...</span>
+                    }
+                    else
+                    {
+                        <span class="material-symbols-outlined" style="font-size:16px;">send</span>
+                        <span>Crear factura</span>
+                    }
+                </button>
+            </div>
+        </EditForm>
+    </div>
+
+    @* Right: Preview Panel *@
+    <div class="w-80 flex-shrink-0">
+        <div class="sticky top-24">
+            <div class="flex items-center justify-between mb-4">
+                <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Vista Previa</h4>
+                <div class="flex gap-1">
+                    <button class="p-2 bg-surface-container-high rounded-lg hover:bg-surface-container-highest transition-colors" title="PDF">
+                        <span class="material-symbols-outlined" style="font-size:18px;">picture_as_pdf</span>
+                    </button>
+                </div>
+            </div>
+            @* A4 Preview *@
+            <div class="bg-white rounded-xl shadow-2xl border border-outline-variant p-8 flex flex-col gap-4" style="aspect-ratio:1/1.41; overflow:hidden;">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="w-10 h-10 bg-on-surface rounded-lg mb-3 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-surface" style="font-size:20px;">description</span>
+                        </div>
+                        <p class="text-xs font-bold text-on-surface">InvoiceFlow</p>
+                        <p class="text-[10px] text-on-surface-variant">Facturación profesional</p>
+                    </div>
+                    <div class="text-right">
+                        <h2 class="text-lg font-bold text-on-surface">FACTURA</h2>
+                        <p class="text-[11px] text-secondary font-mono">FAC-PREVIEW</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 text-[10px]">
+                    <div>
+                        <p class="font-bold text-on-surface-variant uppercase mb-1">Facturar a:</p>
+                        <p class="font-bold text-on-surface">@(_clients.FirstOrDefault(c => c.Id == _model.ClientId)?.Name ?? "—")</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-on-surface-variant uppercase mb-1">Detalles:</p>
+                        <p class="text-on-surface-variant">@_model.IssueDate.ToString("dd MMM yyyy")</p>
+                        <p class="text-on-surface-variant">Vence: @_model.DueDate.ToString("dd MMM yyyy")</p>
+                    </div>
+                </div>
+                <div class="border-t border-outline-variant pt-3 flex-1">
+                    @foreach (var item in _items.Take(4))
+                    {
+                        <div class="flex justify-between text-[10px] mb-1.5">
+                            <span class="text-on-surface truncate flex-1 mr-2">@(string.IsNullOrEmpty(item.Description) ? "Concepto..." : item.Description)</span>
+                            <span class="text-on-surface font-bold flex-shrink-0">@_model.Currency @((item.Quantity * item.UnitPrice).ToString("N0"))</span>
+                        </div>
+                    }
+                </div>
+                @if (_model.DiscountType != DiscountType.None && DiscountAmount > 0)
+                {
+                    <div class="flex justify-between text-[10px] text-emerald-600 mb-1">
+                        <span>Descuento</span>
+                        <span>- @_model.Currency @(DiscountAmount.ToString("N0"))</span>
+                    </div>
+                }
+                <div class="border-t-2 border-on-surface pt-3 flex justify-between items-center">
+                    <span class="text-xs font-bold text-on-surface">TOTAL</span>
+                    <span class="text-sm font-bold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@_model.Currency @(FinalTotal.ToString("N2"))</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly CreateInvoiceFormModel _model = new();
+    private readonly List<InvoiceItemFormModel> _items = [new()];
+    private List<Application.Clients.Dtos.ClientDto> _clients = [];
+    private bool _isSubmitting;
+    private string? _error;
+    private decimal _taxRate;
+    private string _subscriptionTaxLabel = "IVA";
+
+    private decimal Subtotal => _items.Sum(i => i.Quantity * i.UnitPrice);
+
+    private decimal DiscountAmount => _model.DiscountType switch
+    {
+        DiscountType.Percentage => Math.Round(Subtotal * _model.DiscountValue / 100, 2),
+        DiscountType.FixedAmount => Math.Min(_model.DiscountValue, Subtotal),
+        _ => 0
+    };
+
+    private decimal TaxAmount => Math.Round((Subtotal - DiscountAmount) * _taxRate / 100, 2);
+
+    private decimal FinalTotal => Subtotal - DiscountAmount + TaxAmount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var clientsTask = Mediator.Send(new ListClientsQuery(1, 100));
+        var subTask = Mediator.Send(new GetCurrentSubscriptionQuery());
+
+        await Task.WhenAll(clientsTask, subTask);
+
+        _clients = (await clientsTask).Items.ToList();
+        var sub = await subTask;
+        if (sub is not null)
+        {
+            _taxRate = sub.DefaultTaxRate;
+            _subscriptionTaxLabel = sub.TaxLabel;
+        }
+    }
+
+    private void AddItem() => _items.Add(new());
+    private void RemoveItem(int index) { if (_items.Count > 1) _items.RemoveAt(index); }
+    private void Cancel() => Nav.NavigateTo("/invoices");
+
+    private async Task HandleSubmit()
+    {
+        _isSubmitting = true;
+        _error = null;
+
+        try
+        {
+            var command = new CreateInvoiceCommand(
+                _model.ClientId,
+                DateOnly.FromDateTime(_model.IssueDate),
+                DateOnly.FromDateTime(_model.DueDate),
+                _model.Currency,
+                _model.Notes,
+                _items.Select(i => new CreateInvoiceItemRequest(i.Description, i.Quantity, i.UnitPrice)).ToList(),
+                _model.DiscountType,
+                _model.DiscountValue,
+                _taxRate > 0 ? _taxRate : null);
+
+            var id = await Mediator.Send(command);
+            Nav.NavigateTo($"/invoices/{id}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private sealed class CreateInvoiceFormModel
+    {
+        public Guid ClientId { get; set; }
+        public DateTime IssueDate { get; set; } = DateTime.Today;
+        public DateTime DueDate { get; set; } = DateTime.Today.AddDays(30);
+        public Currency Currency { get; set; } = Currency.USD;
+        public string? Notes { get; set; }
+        public DiscountType DiscountType { get; set; } = DiscountType.None;
+        public decimal DiscountValue { get; set; }
+    }
+
+    private sealed class InvoiceItemFormModel
+    {
+        public string Description { get; set; } = string.Empty;
+        public decimal Quantity { get; set; } = 1;
+        public decimal UnitPrice { get; set; }
+    }
+}

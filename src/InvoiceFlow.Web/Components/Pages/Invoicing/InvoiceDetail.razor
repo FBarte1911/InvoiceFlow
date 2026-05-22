@@ -1,0 +1,483 @@
+@page "/invoices/{InvoiceId:guid}"
+@using InvoiceFlow.Application.Invoicing.Commands.CancelInvoice
+@using InvoiceFlow.Application.Invoicing.Commands.CreateCreditNote
+@using InvoiceFlow.Application.Invoicing.Commands.DeleteDraftInvoice
+@using InvoiceFlow.Application.Invoicing.Commands.DuplicateInvoice
+@using InvoiceFlow.Application.Invoicing.Commands.IssueCreditNote
+@using InvoiceFlow.Application.Invoicing.Commands.MarkAsPaid
+@using InvoiceFlow.Application.Invoicing.Commands.RegisterPayment
+@using InvoiceFlow.Application.Invoicing.Commands.SendInvoice
+@using InvoiceFlow.Application.Invoicing.Dtos
+@using InvoiceFlow.Application.Invoicing.Queries.GetCreditNotesByInvoice
+@using InvoiceFlow.Application.Invoicing.Queries.GetInvoiceById
+@using InvoiceFlow.Application.Invoicing.Queries.GetPaymentsByInvoice
+@using InvoiceFlow.Application.Subscriptions.Queries.GetCurrentSubscription
+@using InvoiceFlow.Domain.Invoicing
+@using MediatR
+@inject IMediator Mediator
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>Factura @_invoice?.Number — InvoiceFlow</PageTitle>
+
+@if (_invoice is null)
+{
+    <div class="flex items-center justify-center py-24">
+        <div class="flex items-center gap-3 text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size:24px;">progress_activity</span>
+            <span class="text-sm">Cargando factura...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="p-6 max-w-5xl">
+
+        @* Header *@
+        <div class="flex items-start justify-between mb-7">
+            <div class="flex items-center gap-4">
+                <a href="/invoices" class="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-lg transition-colors">
+                    <span class="material-symbols-outlined" style="font-size:20px;">arrow_back</span>
+                </a>
+                <div>
+                    <div class="flex items-center gap-3 mb-1">
+                        <h1 class="text-2xl font-bold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@_invoice.Number</h1>
+                        <InvoiceStatusBadge Status="@_invoice.Status" />
+                    </div>
+                    <p class="text-sm text-on-surface-variant">@_invoice.ClientName · Emitida el @_invoice.IssueDate.ToString("dd MMM yyyy")</p>
+                </div>
+            </div>
+
+            @* Action buttons *@
+            <div class="flex items-center gap-2">
+                @if (_invoice.Status == InvoiceStatus.Draft)
+                {
+                    <button @onclick="() => SendAsync(SendChannel.Email)" disabled="@_isWorking"
+                        class="flex items-center gap-2 px-4 py-2.5 bg-secondary text-on-secondary rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition-all shadow-sm disabled:opacity-50">
+                        <span class="material-symbols-outlined" style="font-size:16px;">mail</span>
+                        Enviar por Email
+                    </button>
+                    <button @onclick="() => SendAsync(SendChannel.WhatsApp)" disabled="@_isWorking"
+                        class="flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition-all shadow-sm disabled:opacity-50">
+                        <span class="material-symbols-outlined" style="font-size:16px;">chat</span>
+                        WhatsApp
+                    </button>
+                }
+                @if (_invoice.Status is InvoiceStatus.Sent or InvoiceStatus.Overdue)
+                {
+                    <button @onclick="MarkAsPaidAsync" disabled="@_isWorking"
+                        class="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition-all shadow-sm disabled:opacity-50">
+                        <span class="material-symbols-outlined" style="font-size:16px;">check_circle</span>
+                        Marcar como cobrada
+                    </button>
+                    <button @onclick="() => _showPaymentModal = true" disabled="@_isWorking"
+                        class="flex items-center gap-2 px-4 py-2.5 border border-outline-variant rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-50">
+                        <span class="material-symbols-outlined" style="font-size:16px;">payments</span>
+                        Registrar pago
+                    </button>
+                }
+                @if (_invoice.Status is InvoiceStatus.Sent or InvoiceStatus.Overdue or InvoiceStatus.Paid)
+                {
+                    <button @onclick="() => _showCreditNoteModal = true" disabled="@_isWorking"
+                        class="flex items-center gap-2 px-4 py-2.5 border border-outline-variant rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-50">
+                        <span class="material-symbols-outlined" style="font-size:16px;">receipt_long</span>
+                        Nota de crédito
+                    </button>
+                }
+                <a href="/api/invoices/@InvoiceId/pdf" target="_blank"
+                    class="flex items-center gap-2 px-4 py-2.5 border border-outline-variant rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors">
+                    <span class="material-symbols-outlined" style="font-size:16px;">download</span>
+                    PDF
+                </a>
+                <button @onclick="DuplicateAsync" disabled="@_isWorking"
+                    class="flex items-center gap-2 px-4 py-2.5 border border-outline-variant rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-50">
+                    <span class="material-symbols-outlined" style="font-size:16px;">content_copy</span>
+                    Duplicar
+                </button>
+                @if (_invoice.Status == InvoiceStatus.Draft)
+                {
+                    <button @onclick="DeleteAsync" disabled="@_isWorking"
+                        class="px-4 py-2.5 border border-error text-error rounded-lg text-sm font-semibold hover:bg-error-container transition-colors disabled:opacity-50">
+                        Eliminar
+                    </button>
+                }
+                @if (_invoice.Status != InvoiceStatus.Draft && _invoice.Status != InvoiceStatus.Paid && _invoice.Status != InvoiceStatus.Cancelled)
+                {
+                    <button @onclick="CancelAsync" disabled="@_isWorking"
+                        class="px-4 py-2.5 border border-outline-variant rounded-lg text-sm font-semibold text-error hover:bg-error-container transition-colors disabled:opacity-50">
+                        Cancelar
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="flex items-center gap-3 p-4 mb-5 bg-error-container text-on-error-container rounded-xl border border-error/20 text-sm">
+                <span class="material-symbols-outlined" style="font-size:20px;">error</span>
+                @_error
+            </div>
+        }
+
+        @* Info Cards *@
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+                <p class="text-xs text-on-surface-variant mb-1 font-semibold uppercase tracking-wider">Cliente</p>
+                <p class="text-sm font-bold text-on-surface">@_invoice.ClientName</p>
+                <p class="text-xs text-on-surface-variant mt-0.5 truncate">@_invoice.ClientEmail</p>
+            </div>
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+                <p class="text-xs text-on-surface-variant mb-1 font-semibold uppercase tracking-wider">Emisión</p>
+                <p class="text-sm font-bold text-on-surface">@_invoice.IssueDate.ToString("dd MMM yyyy")</p>
+            </div>
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 shadow-sm">
+                <p class="text-xs text-on-surface-variant mb-1 font-semibold uppercase tracking-wider">Vencimiento</p>
+                <p class="text-sm font-bold @(_invoice.IsVisuallyOverdue() ? "text-error" : "text-on-surface")">
+                    @_invoice.DueDate.ToString("dd MMM yyyy")
+                </p>
+                @if (_invoice.IsVisuallyOverdue())
+                {
+                    <p class="text-xs text-error font-medium mt-0.5">Vencida</p>
+                }
+            </div>
+            <div class="bg-secondary text-on-secondary rounded-xl p-5 shadow-sm">
+                <p class="text-xs opacity-80 mb-1 font-semibold uppercase tracking-wider">Total</p>
+                <p class="text-xl font-bold" style="font-family:'JetBrains Mono',monospace;">@_invoice.Currency @(_invoice.Total.ToString("N2"))</p>
+            </div>
+        </div>
+
+        @* Items Table *@
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden mb-6">
+            <div class="px-5 py-4 border-b border-outline-variant">
+                <h2 class="text-base font-semibold text-on-surface">Conceptos</h2>
+            </div>
+            <table class="w-full text-left">
+                <thead class="bg-surface-container-low">
+                    <tr>
+                        <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Descripción</th>
+                        <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Cantidad</th>
+                        <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Precio unit.</th>
+                        <th class="px-5 py-3.5 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant">
+                    @foreach (var item in _invoice.Items)
+                    {
+                        <tr class="hover:bg-surface-container-low transition-colors">
+                            <td class="px-5 py-3.5 text-sm text-on-surface">@item.Description</td>
+                            <td class="px-5 py-3.5 text-sm text-on-surface-variant text-right" style="font-family:'JetBrains Mono',monospace;">@item.Quantity.ToString("G")</td>
+                            <td class="px-5 py-3.5 text-sm text-on-surface-variant text-right" style="font-family:'JetBrains Mono',monospace;">@_invoice.Currency @item.UnitPrice.ToString("N2")</td>
+                            <td class="px-5 py-3.5 text-sm font-semibold text-on-surface text-right" style="font-family:'JetBrains Mono',monospace;">@_invoice.Currency @item.Total.ToString("N2")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot class="border-t-2 border-outline-variant bg-surface-container-low">
+                    <tr>
+                        <td colspan="3" class="px-5 py-3 text-sm text-on-surface-variant text-right">Subtotal</td>
+                        <td class="px-5 py-3 text-sm text-on-surface text-right" style="font-family:'JetBrains Mono',monospace;">@_invoice.Currency @_invoice.Subtotal.ToString("N2")</td>
+                    </tr>
+                    @if (_invoice.DiscountAmount > 0)
+                    {
+                        var discountLabel = _invoice.DiscountType == DiscountType.Percentage
+                            ? $"Descuento ({_invoice.DiscountValue:G}%)"
+                            : "Descuento";
+                        <tr>
+                            <td colspan="3" class="px-5 py-2 text-sm text-emerald-600 text-right">@discountLabel</td>
+                            <td class="px-5 py-2 text-sm text-emerald-600 text-right" style="font-family:'JetBrains Mono',monospace;">- @_invoice.Currency @_invoice.DiscountAmount.ToString("N2")</td>
+                        </tr>
+                    }
+                    @if (_invoice.TaxAmount > 0)
+                    {
+                        var taxLabel = _subscription?.TaxLabel ?? "IVA";
+                        <tr>
+                            <td colspan="3" class="px-5 py-2 text-sm text-blue-600 text-right">@taxLabel (@_invoice.TaxRate.ToString("G")%)</td>
+                            <td class="px-5 py-2 text-sm text-blue-600 text-right" style="font-family:'JetBrains Mono',monospace;">+ @_invoice.Currency @_invoice.TaxAmount.ToString("N2")</td>
+                        </tr>
+                    }
+                    <tr class="border-t border-outline-variant">
+                        <td colspan="3" class="px-5 py-4 text-sm font-bold text-on-surface-variant text-right uppercase tracking-wider">Total</td>
+                        <td class="px-5 py-4 text-base font-bold text-on-surface text-right" style="font-family:'JetBrains Mono',monospace;">@_invoice.Currency @_invoice.Total.ToString("N2")</td>
+                    </tr>
+                    @if (_invoice.AmountPaid > 0 && _invoice.Status != InvoiceStatus.Paid)
+                    {
+                        <tr>
+                            <td colspan="3" class="px-5 py-2 text-sm text-on-surface-variant text-right">Pagado</td>
+                            <td class="px-5 py-2 text-sm text-emerald-600 text-right" style="font-family:'JetBrains Mono',monospace;">@_invoice.Currency @_invoice.AmountPaid.ToString("N2")</td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" class="px-5 py-2 text-sm font-semibold text-on-surface text-right">Saldo pendiente</td>
+                            <td class="px-5 py-2 text-sm font-semibold text-error text-right" style="font-family:'JetBrains Mono',monospace;">@_invoice.Currency @_invoice.BalanceDue.ToString("N2")</td>
+                        </tr>
+                    }
+                </tfoot>
+            </table>
+        </div>
+
+        @* Notes *@
+        @if (_invoice.Notes is not null)
+        {
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 mb-6 shadow-sm">
+                <h3 class="text-sm font-semibold text-on-surface mb-2">Notas</h3>
+                <p class="text-sm text-on-surface-variant">@_invoice.Notes</p>
+            </div>
+        }
+
+        @* Payment Link *@
+        @{
+            var paymentLink = _invoice.MercadoPagoPaymentLink ?? _invoice.StripePaymentLink;
+            var paymentLinkLabel = _invoice.MercadoPagoPaymentLink is not null ? "Pagar con MercadoPago" : "Abrir link de pago";
+        }
+        @if (paymentLink is not null)
+        {
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 mb-6 shadow-sm flex items-center justify-between gap-6">
+                <div>
+                    <p class="text-sm font-semibold text-on-surface mb-0.5">Link de pago online</p>
+                    <p class="text-xs text-on-surface-variant">El cliente puede pagar directamente.</p>
+                </div>
+                <a href="@paymentLink" target="_blank" class="flex items-center gap-2 px-4 py-2.5 bg-secondary text-on-secondary rounded-lg text-sm font-semibold hover:opacity-90 transition-all flex-shrink-0">
+                    <span class="material-symbols-outlined" style="font-size:16px;">open_in_new</span>
+                    @paymentLinkLabel
+                </a>
+            </div>
+        }
+
+        @* Partial Payments *@
+        @if (_invoice.Status is InvoiceStatus.Sent or InvoiceStatus.Overdue or InvoiceStatus.Paid)
+        {
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden mb-6">
+                <div class="px-5 py-4 border-b border-outline-variant flex items-center justify-between">
+                    <h2 class="text-base font-semibold text-on-surface">Pagos registrados</h2>
+                </div>
+                @if (_payments.Count == 0)
+                {
+                    <div class="px-5 py-6 text-sm text-on-surface-variant">No hay pagos registrados.</div>
+                }
+                else
+                {
+                    <table class="w-full text-left">
+                        <thead class="bg-surface-container-low">
+                            <tr>
+                                <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Fecha</th>
+                                <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Monto</th>
+                                <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Método</th>
+                                <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Notas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant">
+                            @foreach (var p in _payments)
+                            {
+                                <tr class="hover:bg-surface-container-low transition-colors">
+                                    <td class="px-5 py-3 text-sm text-on-surface">@p.PaidAt.ToString("dd/MM/yyyy")</td>
+                                    <td class="px-5 py-3 text-sm font-semibold text-on-surface text-right" style="font-family:'JetBrains Mono',monospace;">@p.Currency @p.Amount.ToString("N2")</td>
+                                    <td class="px-5 py-3 text-sm text-on-surface-variant">@p.Method</td>
+                                    <td class="px-5 py-3 text-sm text-on-surface-variant">@(p.Notes ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+
+        @* Credit Notes *@
+        @if (_creditNotes.Count > 0)
+        {
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm overflow-hidden mb-6">
+                <div class="px-5 py-4 border-b border-outline-variant">
+                    <h2 class="text-base font-semibold text-on-surface">Notas de crédito</h2>
+                </div>
+                <table class="w-full text-left">
+                    <thead class="bg-surface-container-low">
+                        <tr>
+                            <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Número</th>
+                            <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right">Monto</th>
+                            <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Razón</th>
+                            <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Estado</th>
+                            <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Enviada</th>
+                            <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-wider text-right"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        @foreach (var cn in _creditNotes)
+                        {
+                            <tr class="hover:bg-surface-container-low transition-colors">
+                                <td class="px-5 py-3 text-sm font-semibold text-on-surface" style="font-family:'JetBrains Mono',monospace;">@cn.Number</td>
+                                <td class="px-5 py-3 text-sm text-on-surface text-right" style="font-family:'JetBrains Mono',monospace;">@cn.Currency @cn.Amount.ToString("N2")</td>
+                                <td class="px-5 py-3 text-sm text-on-surface-variant">@cn.Reason</td>
+                                <td class="px-5 py-3 text-sm text-on-surface-variant">@cn.Status</td>
+                                <td class="px-5 py-3 text-sm text-on-surface-variant">@(cn.SentAt.HasValue ? cn.SentAt.Value.ToString("dd/MM/yyyy") : "—")</td>
+                                <td class="px-5 py-3 text-right">
+                                    <a href="/api/credit-notes/@cn.Id/pdf" target="_blank"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium border border-outline-variant rounded-lg text-on-surface-variant hover:bg-surface-container-high transition-colors">
+                                        <span class="material-symbols-outlined" style="font-size:14px;">download</span>
+                                        PDF
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @if (_showPaymentModal)
+        {
+            <PaymentModal Currency="@_invoice!.Currency.ToString()"
+                          InitialAmount="@_invoice.BalanceDue"
+                          ErrorMessage="@_modalError"
+                          OnConfirm="HandlePaymentConfirmedAsync"
+                          OnCancel="ClosePaymentModal" />
+        }
+
+        @if (_showCreditNoteModal)
+        {
+            <CreditNoteModal Currency="@_invoice!.Currency.ToString()"
+                             InitialAmount="@_invoice.Total"
+                             ErrorMessage="@_modalError"
+                             OnConfirm="HandleCreditNoteConfirmedAsync"
+                             OnCancel="CloseCreditNoteModal" />
+        }
+
+        @* Metadata *@
+        <div class="flex flex-col gap-1 mt-1">
+            @if (_invoice.SentAt.HasValue)
+            {
+                <p class="text-xs text-on-surface-variant">Enviada el @_invoice.SentAt.Value.ToString("dd/MM/yyyy HH:mm")</p>
+            }
+            @if (_invoice.ReceiptSentAt.HasValue)
+            {
+                <p class="text-xs text-emerald-600 flex items-center gap-1">
+                    <span class="material-symbols-outlined" style="font-size:14px;font-variation-settings:'FILL' 1;">check_circle</span>
+                    Recibo enviado el @_invoice.ReceiptSentAt.Value.ToString("dd/MM/yyyy HH:mm")
+                </p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid InvoiceId { get; set; }
+
+    private InvoiceDto? _invoice;
+    private Application.Subscriptions.Dtos.SubscriptionDto? _subscription;
+    private IReadOnlyList<PaymentDto> _payments = [];
+    private IReadOnlyList<CreditNoteDto> _creditNotes = [];
+    private bool _isWorking;
+    private string? _error;
+    private bool _showPaymentModal;
+    private bool _showCreditNoteModal;
+    private string? _modalError;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var invoiceTask = Mediator.Send(new GetInvoiceByIdQuery(InvoiceId));
+        var subscriptionTask = Mediator.Send(new GetCurrentSubscriptionQuery());
+        var paymentsTask = Mediator.Send(new GetPaymentsByInvoiceQuery(InvoiceId));
+        var creditNotesTask = Mediator.Send(new GetCreditNotesByInvoiceQuery(InvoiceId));
+
+        await Task.WhenAll(invoiceTask, subscriptionTask, paymentsTask, creditNotesTask);
+
+        _invoice = await invoiceTask;
+        _subscription = await subscriptionTask;
+        _payments = await paymentsTask;
+        _creditNotes = await creditNotesTask;
+
+    }
+
+    private async Task SendAsync(SendChannel channel)
+    {
+        _isWorking = true;
+        _error = null;
+        try
+        {
+            await Mediator.Send(new SendInvoiceCommand(InvoiceId, channel));
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isWorking = false; }
+    }
+
+    private async Task MarkAsPaidAsync()
+    {
+        _isWorking = true;
+        _error = null;
+        try
+        {
+            await Mediator.Send(new MarkAsPaidCommand(InvoiceId));
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isWorking = false; }
+    }
+
+    private async Task DuplicateAsync()
+    {
+        _isWorking = true;
+        _error = null;
+        try
+        {
+            var newId = await Mediator.Send(new DuplicateInvoiceCommand(InvoiceId));
+            Nav.NavigateTo($"/invoices/{newId}");
+        }
+        catch (Exception ex) { _error = ex.Message; _isWorking = false; }
+    }
+
+    private async Task CancelAsync()
+    {
+        _isWorking = true;
+        _error = null;
+        try
+        {
+            await Mediator.Send(new CancelInvoiceCommand(InvoiceId));
+            Nav.NavigateTo("/invoices");
+        }
+        catch (Exception ex) { _error = ex.Message; _isWorking = false; }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "¿Eliminar este borrador? Esta acción no se puede deshacer."))
+            return;
+        _isWorking = true; _error = null;
+        try
+        {
+            await Mediator.Send(new DeleteDraftInvoiceCommand(InvoiceId));
+            Nav.NavigateTo("/invoices");
+        }
+        catch (Exception ex) { _error = ex.Message; _isWorking = false; }
+    }
+
+    private async Task HandlePaymentConfirmedAsync(PaymentModal.RegisterPaymentArgs args)
+    {
+        _isWorking = true; _modalError = null;
+        try
+        {
+            await Mediator.Send(new RegisterPaymentCommand(InvoiceId, args.Amount, args.PaidAt, args.Method, args.Notes));
+            _showPaymentModal = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _modalError = ex.Message; }
+        finally { _isWorking = false; }
+    }
+
+    private async Task HandleCreditNoteConfirmedAsync(CreditNoteModal.CreditNoteArgs args)
+    {
+        _isWorking = true; _modalError = null;
+        try
+        {
+            var id = await Mediator.Send(new CreateCreditNoteCommand(InvoiceId, args.Amount, args.Reason));
+            await Mediator.Send(new IssueCreditNoteCommand(id, args.SendByEmail));
+            _showCreditNoteModal = false;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _modalError = ex.Message; }
+        finally { _isWorking = false; }
+    }
+
+    private void ClosePaymentModal()   { _showPaymentModal = false;  _modalError = null; }
+    private void CloseCreditNoteModal() { _showCreditNoteModal = false; _modalError = null; }
+}

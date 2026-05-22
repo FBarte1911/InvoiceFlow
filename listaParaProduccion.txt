@@ -1,0 +1,134 @@
+========================================================
+  INVOICEFLOW — LISTA DE TAREAS PARA PRODUCCIÓN
+  Generado: 2026-05-21
+========================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  BLOQUEADORES CRÍTICOS (sin esto no se puede abrir)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] 1. FIX REGISTRO — Register.razor no hace nada real
+        - Reemplazar HandleRegister() con redirect a Auth0 Universal Login
+          usando screen_hint=signup para mostrar pantalla de registro
+        - Archivo: src/InvoiceFlow.Web/Components/Pages/Auth/Register.razor
+        - Tiempo estimado: 30 min
+
+[ ] 2. TENANT PROVISIONING — Nuevo usuario rompe todas las páginas
+        - Al primer login autenticado, verificar si existe Subscription en DB
+        - Si no existe, crear con Subscription.CreateTrial(tenantId)
+        - Opciones: middleware en el pipeline de ASP.NET, o Auth0 Post-Login Action
+          que llame a un endpoint interno /api/onboarding
+        - Sin esto, GetCurrentSubscriptionQuery retorna null y todo crashea
+        - Tiempo estimado: 2-3 hs
+
+[ ] 3. STRIPE SUSCRIPCIÓN SAAS — No hay forma de pagar el plan
+        - PricingPage.razor tiene los cards de planes pero los botones no conectan
+        - Implementar Stripe Checkout Session para suscripciones (Stripe Billing)
+        - Agregar endpoint webhook en Program.cs para eventos:
+            customer.subscription.updated
+            customer.subscription.deleted
+            invoice.paid
+        - El webhook debe disparar UpgradeSubscriptionCommand o Downgrade()
+        - StripePaymentGateway actual es solo para pagos de facturas, no SaaS billing
+        - Tiempo estimado: 4-6 hs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  IMPORTANTE (necesario antes del lanzamiento público)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] 4. CONFIGURAR SECRETS EN RAILWAY
+        - Mover todas las credenciales de appsettings.json a variables de entorno
+        - Auth0: Domain, ClientId, ClientSecret
+        - Stripe: SecretKey, WebhookSecret, SuccessUrl, CancelUrl
+        - Resend: ApiKey
+        - Twilio: AccountSid, AuthToken, FromNumber
+        - MercadoPago: WebhookSecret
+        - ConnectionStrings:DefaultConnection (Supabase)
+        - Serilog Seq: serverUrl (o deshabilitar Seq y usar solo Console en prod)
+        - Tiempo estimado: 1 hs
+
+[ ] 5. GREETING DINÁMICO EN DASHBOARD
+        - "Buenos días, Facundo" está hardcodeado
+        - Leer el nombre del usuario desde los claims de Auth0
+        - Archivo: src/InvoiceFlow.Web/Components/Pages/Dashboard.razor:34
+        - Tiempo estimado: 20 min
+
+[ ] 6. GRÁFICO DE INGRESOS CON DATOS REALES
+        - El gráfico de "Ingresos Mensuales" en el Dashboard es un SVG decorativo estático
+        - Agregar query GetMonthlyRevenueQuery que devuelva ingresos por mes
+        - Renderizar barras o path SVG con datos reales
+        - Archivo: Dashboard.razor:100-119
+        - Tiempo estimado: 2-3 hs
+
+[ ] 7. RESTRINGIR ACCESO A /hangfire
+        - Actualmente HangfireAuthFilter solo verifica IsAuthenticated
+        - Cualquier cliente puede entrar a /hangfire y ver/ejecutar jobs
+        - Restringir a un claim de rol admin o por email específico
+        - Archivo: src/InvoiceFlow.Web/Program.cs:151-154
+        - Tiempo estimado: 30 min
+
+[ ] 8. TEMPLATE DE EMAIL PROFESIONAL
+        - El HTML del email es una interpolación de strings básica
+        - Diseñar un template HTML transaccional con logo, estilos, footer
+        - Archivo: SendInvoiceCommandHandler.cs:107-115
+        - Tiempo estimado: 2-3 hs
+
+[ ] 9. SOCIAL PROOF FALSA EN REGISTER
+        - Register.razor muestra "Únete a más de 5,000+ profesionales"
+        - Dato ficticio para un producto pre-lanzamiento
+        - Reemplazar con copy honesto (ej. "Estás entre los primeros en probarlo")
+        - Archivo: Register.razor:37
+        - Tiempo estimado: 5 min
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  DEUDA TÉCNICA (limpiar antes o después del lanzamiento)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[ ] 10. ELIMINAR ARCHIVOS TEMPLATE DE BLAZOR
+         - src/InvoiceFlow.Web/Components/Pages/Counter.razor
+         - src/InvoiceFlow.Web/Components/Pages/Weather.razor
+         - Tiempo estimado: 2 min
+
+[ ] 11. ELIMINAR Class1.cs VACÍOS
+         - src/InvoiceFlow.Domain/Class1.cs
+         - src/InvoiceFlow.Application/Class1.cs
+         - src/InvoiceFlow.Infrastructure/Class1.cs
+         - Tiempo estimado: 2 min
+
+[ ] 12. AGREGAR TESTS DE APPLICATION LAYER
+         - tests/InvoiceFlow.Application.Tests/UnitTest1.cs está vacío
+         - Cubrir al menos: CreateInvoiceCommandHandler, SendInvoiceCommandHandler,
+           MarkAsPaidCommandHandler
+         - Tiempo estimado: 4-6 hs
+
+[ ] 13. CONFIGURAR RATE LIMITING
+         - AspNetCoreRateLimit está en las dependencias pero no está registrado
+         - Agregar middleware y configuración en Program.cs
+         - Proteger endpoints de PDF y webhooks
+         - Tiempo estimado: 1-2 hs
+
+[ ] 14. LINK DE WHATSAPP CUANDO NO HAY MERCADOPAGO
+         - SendInvoiceCommandHandler.cs:88 usa "link próximamente" como fallback
+         - Debería usar invoice.StripePaymentLink si MercadoPago no está configurado
+         - Archivo: SendInvoiceCommandHandler.cs:88
+         - Tiempo estimado: 10 min
+
+[ ] 15. USAGE PERCENTAGE EN PRICING PAGE
+         - PricingPage.razor:16: var pct = ... siempre calcula 0 (bug)
+         - La condición de alerta nunca se activa
+         - Archivo: PricingPage.razor:16
+         - Tiempo estimado: 15 min
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  RESUMEN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Bloqueadores críticos:     3 tareas  (~1 día)
+  Importantes:               6 tareas  (~1.5 días)
+  Deuda técnica:             6 tareas  (~1 día)
+
+  Mínimo para beta cerrada:  tareas 1, 2, 3, 4         (~1.5 días)
+  Listo para lanzamiento:    tareas 1 a 9              (~3 días)
+  Proyecto limpio y robusto: todas (1 a 15)            (~5 días)
+
+========================================================

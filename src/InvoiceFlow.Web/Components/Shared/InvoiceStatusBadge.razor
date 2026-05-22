@@ -1,0 +1,27 @@
+@using InvoiceFlow.Domain.Invoicing
+
+<span class="@_cssClass">@_label</span>
+
+@code {
+    [Parameter, EditorRequired] public InvoiceStatus Status { get; set; }
+
+    private string _label => Status switch
+    {
+        InvoiceStatus.Draft     => "Borrador",
+        InvoiceStatus.Sent      => "Enviada",
+        InvoiceStatus.Paid      => "Cobrada",
+        InvoiceStatus.Overdue   => "Vencida",
+        InvoiceStatus.Cancelled => "Cancelada",
+        _                       => Status.ToString()
+    };
+
+    private string _cssClass => Status switch
+    {
+        InvoiceStatus.Paid      => "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200",
+        InvoiceStatus.Sent      => "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-100 text-cyan-800 border border-cyan-200",
+        InvoiceStatus.Overdue   => "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200",
+        InvoiceStatus.Draft     => "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200",
+        InvoiceStatus.Cancelled => "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200",
+        _                       => "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600"
+    };
+}

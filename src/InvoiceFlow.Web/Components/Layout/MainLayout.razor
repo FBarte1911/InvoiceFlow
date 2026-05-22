@@ -1,0 +1,63 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+
+<aside class="fixed left-0 top-0 h-screen w-[256px] bg-surface flex flex-col border-r border-outline-variant shadow-sm z-50">
+    <NavMenu />
+</aside>
+
+<header class="fixed top-0 right-0 h-16 bg-surface flex justify-between items-center px-6 border-b border-outline-variant z-40" style="width: calc(100% - 256px);">
+    <div class="flex items-center gap-3 bg-surface-container-low px-4 py-2 rounded-full border border-outline-variant focus-within:ring-2 focus-within:ring-secondary-container transition-all">
+        <span class="material-symbols-outlined text-outline" style="font-size: 20px;">search</span>
+        <input class="bg-transparent border-none focus:ring-0 text-sm w-64 placeholder:text-outline outline-none" placeholder="Buscar clientes o facturas..." type="text" />
+    </div>
+    <div class="flex items-center gap-5">
+        <button class="relative text-on-surface-variant hover:text-primary transition-colors cursor-pointer">
+            <span class="material-symbols-outlined">notifications</span>
+            <span class="absolute top-0 right-0 w-2 h-2 bg-error rounded-full"></span>
+        </button>
+        <div class="h-8 w-px bg-outline-variant"></div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="flex items-center gap-3">
+                    <div class="text-right hidden sm:block">
+                        <p class="text-sm font-semibold text-on-surface leading-tight">@context.User.Identity?.Name</p>
+                        <p class="text-xs text-on-surface-variant leading-tight">Freelancer Pro</p>
+                    </div>
+                    <div class="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        @GetInitials(context.User.Identity?.Name)
+                    </div>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="flex items-center gap-3">
+                    <div class="text-right hidden sm:block">
+                        <p class="text-sm font-semibold text-on-surface leading-tight">Modo desarrollo</p>
+                        <p class="text-xs text-on-surface-variant leading-tight">Local</p>
+                    </div>
+                    <div class="w-9 h-9 rounded-full bg-secondary flex items-center justify-center text-white font-bold text-sm flex-shrink-0">DM</div>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</header>
+
+<main class="ml-[256px] pt-16 min-h-screen bg-background">
+    @Body
+</main>
+
+<div id="blazor-error-ui">
+    Ocurrió un error inesperado.
+    <a href="" class="reload">Recargar</a>
+    <a class="dismiss">✕</a>
+</div>
+
+@code {
+    private static string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "U";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{parts[0][0]}{parts[^1][0]}"
+            : name[..Math.Min(2, name.Length)];
+    }
+}

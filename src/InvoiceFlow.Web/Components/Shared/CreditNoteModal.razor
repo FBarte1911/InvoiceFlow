@@ -1,0 +1,60 @@
+<div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div class="bg-surface rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+        <h3 class="text-lg font-semibold text-on-surface">Emitir nota de crédito</h3>
+
+        <div>
+            <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">Monto (@Currency)</label>
+            <input @bind="_amount" type="number" min="0.01" step="0.01"
+                class="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40" />
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-1.5">Razón</label>
+            <textarea @bind="_reason" rows="3" maxlength="1000"
+                class="w-full px-3 py-2 rounded-lg border border-outline-variant bg-surface text-sm focus:outline-none focus:ring-2 focus:ring-secondary/40 resize-none"></textarea>
+        </div>
+        <div class="flex items-center gap-3">
+            <input @bind="_sendByEmail" type="checkbox" id="cnSendEmail" class="h-4 w-4 accent-secondary" />
+            <label for="cnSendEmail" class="text-sm text-on-surface">Enviar por email al cliente</label>
+        </div>
+
+        @if (ErrorMessage is not null)
+        {
+            <p class="text-xs text-error">@ErrorMessage</p>
+        }
+
+        <div class="flex gap-3 justify-end pt-2">
+            <button @onclick="OnCancel"
+                class="px-4 py-2 border border-outline-variant rounded-lg text-sm font-semibold text-on-surface-variant hover:bg-surface-container-high transition-colors">
+                Cancelar
+            </button>
+            <button @onclick="ConfirmAsync" disabled="@_isWorking"
+                class="px-5 py-2 bg-secondary text-on-secondary rounded-lg text-sm font-semibold hover:opacity-90 transition-all disabled:opacity-50">
+                @(_isWorking ? "Emitiendo..." : "Emitir")
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    public sealed record CreditNoteArgs(decimal Amount, string Reason, bool SendByEmail);
+
+    [Parameter, EditorRequired] public string Currency { get; set; } = default!;
+    [Parameter, EditorRequired] public decimal InitialAmount { get; set; }
+    [Parameter, EditorRequired] public EventCallback<CreditNoteArgs> OnConfirm { get; set; }
+    [Parameter, EditorRequired] public EventCallback OnCancel { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+
+    private decimal _amount;
+    private string _reason = string.Empty;
+    private bool _sendByEmail;
+    private bool _isWorking;
+
+    protected override void OnParametersSet() => _amount = InitialAmount;
+
+    private async Task ConfirmAsync()
+    {
+        _isWorking = true;
+        await OnConfirm.InvokeAsync(new CreditNoteArgs(_amount, _reason, _sendByEmail));
+        _isWorking = false;
+    }
+}
