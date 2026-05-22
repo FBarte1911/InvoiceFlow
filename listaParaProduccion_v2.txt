@@ -1,6 +1,6 @@
 ========================================================
   INVOICEFLOW — LISTA DE TAREAS PARA PRODUCCIÓN
-  Generado: 2026-05-21
+  Actualizado: 2026-05-22
 ========================================================
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -80,6 +80,53 @@
         - Archivo: Register.razor:37
         - Tiempo estimado: 5 min
 
+[ ] 16. RESTRICCIÓN DE WHATSAPP Y EMAIL POR PLAN
+        - El envío por WhatsApp y email debe estar disponible SOLO en plan Pro y Team
+        - En plan Starter, deshabilitar los botones de envío automático
+        - Mostrar prompt de upgrade cuando un usuario Starter intenta enviar
+        - Esto afecta: SendInvoiceCommandHandler, botones en InvoiceDetail.razor
+        - Lógica: verificar SubscriptionTier antes de ejecutar el envío
+        - Tiempo estimado: 1-2 hs
+
+[ ] 17. DISCLAIMER LEGAL EN FOOTER Y TÉRMINOS DE USO
+        - InvoiceFlow genera documentos de cobro profesionales en PDF
+        - Los PDFs NO son CFEs ni tienen validez fiscal oficial ante DGI
+        - Agregar en el footer y en los T&C:
+          "InvoiceFlow genera documentos de cobro profesionales.
+           No reemplaza la obligación fiscal de emitir comprobantes
+           oficiales (CFE) cuando corresponda según la normativa
+           de cada país."
+        - Esto cubre la responsabilidad legal del producto
+        - Tiempo estimado: 30 min
+
+[ ] 18. DOCUMENTOS DISPONIBLES POR TIER — VERIFICAR LÓGICA
+        - Confirmar que UsageLimits respeta la siguiente distribución:
+
+          STARTER (gratuito):
+            + Factura / Invoice (PDF)
+            + Recibo de pago (automático al marcar como pagada)
+            - Límite: 3 clientes, 5 facturas/mes
+            - Sin envío automático por email ni WhatsApp
+
+          PRO ($9 USD/mes):
+            + Todo lo de Starter (sin límites)
+            + Envío por email y WhatsApp
+            + Presupuesto / Cotización (convertible a factura)
+            + Factura recurrente (Hangfire)
+            + Factura de anticipo
+            + Nota de crédito (PDF informal)
+            + Nota de débito (PDF informal)
+
+          TEAM ($24 USD/mes):
+            + Todo lo de Pro
+            + Estado de cuenta
+            + Reporte de ingresos para declaración fiscal (PDF/Excel)
+            + Hasta 5 usuarios
+            + Portal cliente
+            + API access
+
+        - Tiempo estimado: 1-2 hs (revisar y ajustar UsageLimits)
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   DEUDA TÉCNICA (limpiar antes o después del lanzamiento)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -120,15 +167,28 @@
          - Tiempo estimado: 15 min
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  RESUMEN
+  FUERA DE SCOPE — NO implementar ahora
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Bloqueadores críticos:     3 tareas  (~1 día)
-  Importantes:               6 tareas  (~1.5 días)
-  Deuda técnica:             6 tareas  (~1 día)
+[ ] CFE / e-Factura oficial ante DGI Uruguay
+        - Decisión tomada: NO incluir en MVP ni en lanzamiento inicial
+        - El target principal (freelancers en monotributo y que cobran
+          al exterior) no lo necesita
+        - Evaluar integración con Uruware solo cuando haya usuarios
+          pidiéndolo activamente (estimado: mes 9+)
+        - Costo: ~$12 USD/usuario pago/mes → requiere ajustar precios
+          o tener 300-500 usuarios pagos para que sea viable
 
-  Mínimo para beta cerrada:  tareas 1, 2, 3, 4         (~1.5 días)
-  Listo para lanzamiento:    tareas 1 a 9              (~3 días)
-  Proyecto limpio y robusto: todas (1 a 15)            (~5 días)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  RESUMEN ACTUALIZADO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Bloqueadores críticos:     3 tareas   (~1 día)
+  Importantes:               9 tareas   (~2 días)
+  Deuda técnica:             6 tareas   (~1 día)
+
+  Mínimo para beta cerrada:  tareas 1, 2, 3, 4              (~1.5 días)
+  Listo para lanzamiento:    tareas 1 a 9 + 16, 17, 18     (~4 días)
+  Proyecto limpio y robusto: todas (1 a 18)                 (~6 días)
 
 ========================================================
