@@ -10,6 +10,7 @@ using InvoiceFlow.Infrastructure.Jobs;
 using InvoiceFlow.Infrastructure.Payments.MercadoPago;
 using InvoiceFlow.Infrastructure.Persistence;
 using InvoiceFlow.Web.Components;
+using InvoiceFlow.Web.Middleware;
 using MediatR;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -55,6 +56,7 @@ try
     app.UseRouting();
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseMiddleware<TenantProvisioningMiddleware>();
     app.UseAntiforgery();
 
     app.UseHangfireDashboard("/hangfire", new DashboardOptions
@@ -102,6 +104,21 @@ try
             var safeUrl = Uri.IsWellFormedUriString(returnUrl, UriKind.Relative) ? returnUrl : "/";
             ctx.Response.Redirect(safeUrl);
         });
+
+        app.MapGet("/Account/Register/Google", async (HttpContext ctx, string? returnUrl) =>
+        {
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, "dev-user-local"),
+                new Claim(ClaimTypes.Name, "Dev User"),
+                new Claim("tenant_id", "dev-tenant-local"),
+                new Claim("tenant_name", "Dev Tenant"),
+            };
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+            var safeUrl = Uri.IsWellFormedUriString(returnUrl, UriKind.Relative) ? returnUrl : "/";
+            ctx.Response.Redirect(safeUrl);
+        });
     }
     else
     {
@@ -118,6 +135,15 @@ try
             var props = new LoginAuthenticationPropertiesBuilder()
                 .WithRedirectUri(returnUrl ?? "/")
                 .WithParameter("screen_hint", "signup")
+                .Build();
+            await ctx.ChallengeAsync(Auth0Constants.AuthenticationScheme, props);
+        });
+
+        app.MapGet("/Account/Register/Google", async (HttpContext ctx, string? returnUrl) =>
+        {
+            var props = new LoginAuthenticationPropertiesBuilder()
+                .WithRedirectUri(returnUrl ?? "/")
+                .WithParameter("connection", "google-oauth2")
                 .Build();
             await ctx.ChallengeAsync(Auth0Constants.AuthenticationScheme, props);
         });

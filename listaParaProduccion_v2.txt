@@ -166,6 +166,29 @@
          - Archivo: PricingPage.razor:16
          - Tiempo estimado: 15 min
 
+[ ] 19. CONFIGURAR AUTH0 POST-LOGIN ACTION (tenant_id claim)
+        - Sin esto, CurrentTenantService lanza InvalidOperationException en producción
+          y el middleware de tenant provisioning (Tarea 2) no puede funcionar
+        - Pasos:
+            1. Ir a manage.auth0.com → Actions → Flows → Login
+            2. Hacer click en el "+" para crear un nuevo Action → "Build from scratch"
+            3. Nombrar el Action: "Set tenant claims"
+            4. Pegar el siguiente código:
+
+               exports.onExecutePostLogin = async (event, api) => {
+                 api.idToken.setCustomClaim('tenant_id', event.user.user_id);
+                 api.idToken.setCustomClaim('tenant_name', event.user.name ?? event.user.email);
+               };
+
+            5. Hacer click en "Deploy"
+            6. En el flujo de Login, arrastrar el Action "Set tenant claims"
+               al pipeline (entre "Start" y "Complete")
+            7. Hacer click en "Apply"
+            8. Verificar: ir a Actions → "Set tenant claims" → pestaña "Try"
+               y confirmar que el ID token resultante incluye los campos:
+               "tenant_id": "auth0|..." y "tenant_name": "..."
+        - Tiempo estimado: 15 min
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   FUERA DE SCOPE — NO implementar ahora
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -186,9 +209,10 @@
   Bloqueadores críticos:     3 tareas   (~1 día)
   Importantes:               9 tareas   (~2 días)
   Deuda técnica:             6 tareas   (~1 día)
+  Configuración externa:     1 tarea    (~15 min)
 
-  Mínimo para beta cerrada:  tareas 1, 2, 3, 4              (~1.5 días)
-  Listo para lanzamiento:    tareas 1 a 9 + 16, 17, 18     (~4 días)
-  Proyecto limpio y robusto: todas (1 a 18)                 (~6 días)
+  Mínimo para beta cerrada:  tareas 1, 2, 3, 4, 19         (~1.5 días)
+  Listo para lanzamiento:    tareas 1 a 9 + 16, 17, 18, 19 (~4 días)
+  Proyecto limpio y robusto: todas (1 a 19)                 (~6 días)
 
 ========================================================

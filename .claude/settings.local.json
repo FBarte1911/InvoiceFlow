@@ -75,7 +75,19 @@
       "Bash(xargs wc -l)",
       "Bash(xargs grep -l \"Tax\\\\|tax\")",
       "Bash(xargs grep -l \"enum DiscountType\")",
-      "Bash(git remote *)"
+      "Bash(git remote *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Lenovo\\\\OneDrive\\\\Desktop\\\\InvoiceFlow\" -Recurse -Force | Where-Object {$_.Extension -in '.razor', '.cs', '.json'} | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Lenovo\\\\OneDrive\\\\Desktop\\\\InvoiceFlow\\\\src\\\\InvoiceFlow.Web\\\\Components\\\\Pages\" -Recurse -File | Select-Object Name, FullName | Where-Object { $_.Name -match '\\\\.\\(razor|cs\\)$' })",
+      "PowerShell(tree *)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(xargs grep -l \"CreateTrial\\\\|CreateFree\")",
+      "Bash(xargs grep -l \"Subscription\\\\|Register\\\\|Provision\")",
+      "Bash(xargs grep -l \"Subscription.Create\")",
+      "Bash(xargs grep -l \"SignInAsync\\\\|AddAsync.*Subscription\")",
+      "Bash(xargs grep -l \"OnPostAsync.*Register\\\\|SignInAsync.*tenant\")",
+      "Bash(xargs grep -l \"OnPostAsync\\\\|post-login\\\\|after.*signup\")",
+      "Bash(xargs grep -l \"IHttpClientFactory\\\\|Auth0\")",
+      "Bash(xargs grep -l \"event.*Subscription\\\\|CreateSubscription\\\\|ProvisionTenant\")"
     ]
   }
 }
