@@ -30,7 +30,14 @@
 
     @* Page Header *@
     <section class="mb-7">
-        <h1 class="text-2xl font-bold text-on-surface mb-1">Buenos días, Facundo</h1>
+        <AuthorizeView>
+            <Authorized>
+                <h1 class="text-2xl font-bold text-on-surface mb-1">Buenos días, @context.User.Identity?.Name</h1>
+            </Authorized>
+            <NotAuthorized>
+                <h1 class="text-2xl font-bold text-on-surface mb-1">Buenos días</h1>
+            </NotAuthorized>
+        </AuthorizeView>
         <p class="text-sm text-on-surface-variant">Aquí tienes el resumen de tu actividad financiera para hoy.</p>
     </section>
 

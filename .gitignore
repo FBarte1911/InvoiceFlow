@@ -26,7 +26,6 @@ logs/
 ## App secrets / env
 appsettings.*.json
 !appsettings.json
-!appsettings.Development.json
 *.env
 .env
 
@@ -37,3 +36,11 @@ Thumbs.db
 ## IDE
 .idea/
 *.swp
+
+## Claude Code
+.claude/
+
+## Documentos privados
+InvoiceFlow_Contexto.md
+InvoiceFlow_Informe.pdf
+listaParaProduccion_v2.txt
