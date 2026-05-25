@@ -33,12 +33,22 @@ try
     if (builder.Environment.IsDevelopment())
         builder.Services.AddScoped<DevDataSeeder>();
 
-    builder.Services.AddAuth0WebAppAuthentication(opts =>
+    if (builder.Environment.IsDevelopment())
     {
-        opts.Domain = builder.Configuration["Auth0:Domain"]!;
-        opts.ClientId = builder.Configuration["Auth0:ClientId"]!;
-        opts.ClientSecret = builder.Configuration["Auth0:ClientSecret"];
-    });
+        builder.Services
+            .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie();
+        builder.Services.AddAuthorization();
+    }
+    else
+    {
+        builder.Services.AddAuth0WebAppAuthentication(opts =>
+        {
+            opts.Domain = builder.Configuration["Auth0:Domain"]!;
+            opts.ClientId = builder.Configuration["Auth0:ClientId"]!;
+            opts.ClientSecret = builder.Configuration["Auth0:ClientSecret"];
+        });
+    }
 
     builder.Services.AddCascadingAuthenticationState();
     builder.Services.AddHttpContextAccessor();
@@ -125,6 +135,12 @@ try
 
     app.MapGet("/Account/Logout", async (HttpContext ctx) =>
     {
+        if (app.Environment.IsDevelopment())
+        {
+            await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            ctx.Response.Redirect("/");
+            return;
+        }
         await ctx.SignOutAsync(Auth0Constants.AuthenticationScheme, new AuthenticationProperties
         {
             RedirectUri = "/"

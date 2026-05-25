@@ -46,54 +46,45 @@ InvoiceFlow.sln
 
 La multi-tenancy es shared database / shared schema con discriminador por `TenantId`, inyectado automáticamente por Finbuckle en cada query de EF Core.
 
-## Requisitos previos
+## Correr el proyecto localmente
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [Docker](https://www.docker.com/) (para PostgreSQL local)
-- Cuenta en Auth0, Resend, Twilio, Stripe (opcionales para desarrollo)
-
-## Levantar el entorno local
+Solo necesitás [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0). No se necesita Docker ni cuentas externas.
 
 ```bash
-# 1. Iniciar la base de datos
-docker compose up -d
-
-# 2. Restaurar dependencias
-dotnet restore
-
-# 3. Aplicar migraciones
-dotnet ef database update --project src/InvoiceFlow.Infrastructure --startup-project src/InvoiceFlow.Web
-
-# 4. Correr la aplicación
 dotnet run --project src/InvoiceFlow.Web
 ```
 
-La app queda disponible en `https://localhost:5001`.
+La app queda disponible en `http://localhost:5281`.
 
-## Variables de entorno
+En modo `Development` (por defecto):
+- La base de datos corre en memoria — no hace falta PostgreSQL ni Docker.
+- El login es automático: al entrar a cualquier página protegida, se crea una sesión de dev sin pasar por Auth0.
+- El seeder carga datos de prueba (clientes, facturas en distintos estados, multi-moneda).
+- Hangfire corre en memoria.
 
-Crear `src/InvoiceFlow.Web/appsettings.Development.json` con:
+## Configuración para producción
+
+Crear `src/InvoiceFlow.Web/appsettings.Production.json` con las claves de los servicios externos:
 
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Database=invoiceflow;Username=postgres;Password=postgres"
+    "DefaultConnection": "Host=...;Database=invoiceflow;Username=postgres;Password=..."
   },
   "Auth0": {
     "Domain": "YOUR_AUTH0_DOMAIN",
     "ClientId": "YOUR_CLIENT_ID",
     "ClientSecret": "YOUR_CLIENT_SECRET"
   },
-  "Resend": {
-    "ApiKey": "YOUR_RESEND_KEY"
-  },
+  "Resend": { "ApiKey": "YOUR_RESEND_KEY" },
   "Twilio": {
     "AccountSid": "YOUR_TWILIO_SID",
     "AuthToken": "YOUR_TWILIO_TOKEN",
     "WhatsAppFrom": "whatsapp:+14155238886"
   },
   "Stripe": {
-    "SecretKey": "YOUR_STRIPE_SECRET"
+    "SecretKey": "YOUR_STRIPE_SECRET",
+    "WebhookSecret": "YOUR_WEBHOOK_SECRET"
   }
 }
 ```
